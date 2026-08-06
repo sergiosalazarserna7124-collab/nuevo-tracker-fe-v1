@@ -43,6 +43,7 @@ export interface SystemConfigData {
   ranking_metrica_base: string | null;
   /** Control de notas en GHL tras procesar videollamada de Fathom */
   ghl_notas?: { ia?: boolean; transcripcion?: boolean };
+  ghl_notas_llamadas?: { ia?: boolean; transcripcion?: boolean };
   /** Toggle: si true, las etapas con es_cerrada:true también cuentan como calificadas */
   cerradas_cuentan_como_calificadas?: boolean;
   categorias_llamadas: CategoriaLlamada[];
@@ -62,6 +63,7 @@ export interface SystemConfigUpdatePayload extends Partial<Omit<SystemConfigData
   secciones_ocultas?: string[];
   ranking_metrica_base?: string | null;
   ghl_notas?: { ia?: boolean; transcripcion?: boolean };
+  ghl_notas_llamadas?: { ia?: boolean; transcripcion?: boolean };
   cerradas_cuentan_como_calificadas?: boolean;
   categorias_llamadas?: CategoriaLlamada[];
   exclusiones_coach?: ExclusionesCoach | null;
@@ -175,6 +177,7 @@ export async function getSystemConfig(idCuenta: number): Promise<SystemConfigDat
     secciones_ocultas: Array.isArray(r.configuracion_ui?.secciones_ocultas) ? r.configuracion_ui.secciones_ocultas as string[] : [],
     ranking_metrica_base: (typeof r.configuracion_ui?.ranking_metrica_base === 'string') ? r.configuracion_ui.ranking_metrica_base : null,
     ghl_notas: r.configuracion_ui?.ghl_notas ?? { ia: true, transcripcion: false },
+    ghl_notas_llamadas: r.configuracion_ui?.ghl_notas_llamadas ?? { ia: true, transcripcion: true },
     cerradas_cuentan_como_calificadas: r.configuracion_ui?.cerradas_cuentan_como_calificadas ?? true,
     categorias_llamadas: Array.isArray(r.categorias_llamadas) ? r.categorias_llamadas : [],
     exclusiones_coach: (r.exclusiones_coach && typeof r.exclusiones_coach === "object") ? r.exclusiones_coach as ExclusionesCoach : null,
@@ -275,6 +278,7 @@ export async function updateSystemConfig(
     data.secciones_ocultas !== undefined ||
     data.ranking_metrica_base !== undefined ||
     (data as Record<string, unknown>).ghl_notas !== undefined ||
+    (data as Record<string, unknown>).ghl_notas_llamadas !== undefined ||
     (data as Record<string, unknown>).cerradas_cuentan_como_calificadas !== undefined
   ) {
     const [row] = await db
@@ -309,6 +313,9 @@ export async function updateSystemConfig(
     }
     if ((data as Record<string, unknown>).ghl_notas !== undefined) {
       updatedUi.ghl_notas = (data as Record<string, unknown>).ghl_notas as { ia?: boolean; transcripcion?: boolean };
+    }
+    if ((data as Record<string, unknown>).ghl_notas_llamadas !== undefined) {
+      updatedUi.ghl_notas_llamadas = (data as Record<string, unknown>).ghl_notas_llamadas as { ia?: boolean; transcripcion?: boolean };
     }
     if ((data as Record<string, unknown>).cerradas_cuentan_como_calificadas !== undefined) {
       updatedUi.cerradas_cuentan_como_calificadas = (data as Record<string, unknown>).cerradas_cuentan_como_calificadas as boolean;

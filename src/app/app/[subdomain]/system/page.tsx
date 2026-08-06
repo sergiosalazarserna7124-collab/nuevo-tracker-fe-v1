@@ -173,6 +173,7 @@ interface SystemConfig {
   idioma?: 'es' | 'en';
   configuracion_ads?: ConfiguracionAdsLocal;
   ghl_notas?: { ia?: boolean; transcripcion?: boolean };
+  ghl_notas_llamadas?: { ia?: boolean; transcripcion?: boolean };
   categorias_llamadas?: CategoriaLlamada[];
   secciones_ocultas?: string[];
   ranking_metrica_base?: string | null;
@@ -299,6 +300,9 @@ export default function SystemPage() {
   const [chatAnalisisHora, setChatAnalisisHora] = useState<number>(2);
   const [ghlNotasIa, setGhlNotasIa] = useState<boolean>(true);
   const [ghlNotasTranscripcion, setGhlNotasTranscripcion] = useState<boolean>(false);
+  // Notas GHL para LLAMADAS telefónicas (independiente de videollamadas)
+  const [ghlNotasLlamadasIa, setGhlNotasLlamadasIa] = useState<boolean>(true);
+  const [ghlNotasLlamadasTranscripcion, setGhlNotasLlamadasTranscripcion] = useState<boolean>(true);
   const [analizandoChats, setAnalizandoChats] = useState(false);
   const [analisisResult, setAnalisisResult] = useState<{ processed: number; updated: number; errors: number; costEstimate: string } | null>(null);
   const [reglasAbiertasMap, setReglasAbiertasMap] = useState<Record<string, boolean>>({});
@@ -456,6 +460,10 @@ export default function SystemPage() {
         if (typeof cfg.chat_analisis_hora === 'number') {
           setChatAnalisisHora(cfg.chat_analisis_hora);
         }
+        if (cfg.ghl_notas_llamadas) {
+          setGhlNotasLlamadasIa(cfg.ghl_notas_llamadas.ia !== false); // default true
+          setGhlNotasLlamadasTranscripcion(cfg.ghl_notas_llamadas.transcripcion !== false); // default true
+        }
         if (cfg.ghl_notas) {
           setGhlNotasIa(cfg.ghl_notas.ia !== false); // default true
           setGhlNotasTranscripcion(cfg.ghl_notas.transcripcion === true); // default false
@@ -604,6 +612,7 @@ export default function SystemPage() {
         chat_config: chatConfig,
         chat_analisis_hora: chatAnalisisHora,
         ghl_notas: { ia: ghlNotasIa, transcripcion: ghlNotasTranscripcion },
+        ghl_notas_llamadas: { ia: ghlNotasLlamadasIa, transcripcion: ghlNotasLlamadasTranscripcion },
         fuente_llamadas: fuenteLlamadas,
         ghl_location_id: ghlLocationId.trim() || null,
         cerradas_cuentan_como_calificadas: cerradasCuentanComoCal,
@@ -961,6 +970,38 @@ export default function SystemPage() {
                 className="w-full rounded-lg bg-surface-700/80 border border-surface-500 p-3 text-sm text-white placeholder-gray-500 min-h-[180px] focus:ring-2 focus:ring-accent-cyan/50 focus:border-accent-cyan/50 transition-colors"
                 placeholder="Evalúa la llamada telefónica según..." />
               <p className="text-[11px] text-gray-500 mt-1">Se recomienda ser lo más completo posible para que la IA entienda tu negocio de la mejor manera.</p>
+
+              {/* ── Sección: Notas en GHL después de la llamada ── */}
+              <div className="rounded-xl border border-accent-amber/30 bg-accent-amber/5 p-4 space-y-4 mt-4">
+                <h4 className="text-sm font-semibold text-accent-amber flex items-center gap-2">
+                  📝 Notas en GHL después de la llamada
+                </h4>
+                <p className="text-sm text-gray-400">
+                  Cuando llega una llamada, el sistema puede guardar notas automáticamente en el contacto de GHL. Apaga lo que el cliente no quiera.
+                </p>
+                {/* Toggle: Análisis IA */}
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-white font-medium">Nota con análisis IA</span>
+                  <button
+                    type="button"
+                    onClick={() => setGhlNotasLlamadasIa((v) => !v)}
+                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${ghlNotasLlamadasIa ? 'bg-accent-green' : 'bg-surface-500'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasLlamadasIa ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                {/* Toggle: Transcripción completa */}
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-white font-medium">Nota con transcripción completa</span>
+                  <button
+                    type="button"
+                    onClick={() => setGhlNotasLlamadasTranscripcion((v) => !v)}
+                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${ghlNotasLlamadasTranscripcion ? 'bg-accent-green' : 'bg-surface-500'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasLlamadasTranscripcion ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              </div>
 
               {/* ── Categorías de llamada ── */}
               <div className="mt-6 pt-5 border-t border-surface-500">

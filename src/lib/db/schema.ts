@@ -53,6 +53,11 @@ export interface ConfiguracionUI {
     /** Guardar nota con la transcripción completa. Default: false (consume tokens, puede fallar por límite de 65k chars) */
     transcripcion?: boolean;
   };
+  /** Notas GHL para LLAMADAS telefónicas (canal GHL calls). Independiente de ghl_notas (videollamadas). */
+  ghl_notas_llamadas?: {
+    ia?: boolean;
+    transcripcion?: boolean;
+  };
   /** Toggle: si true, las etapas con es_cerrada:true también cuentan como calificadas. Default: true */
   cerradas_cuentan_como_calificadas?: boolean;
   secciones_ocultas?: string[];
