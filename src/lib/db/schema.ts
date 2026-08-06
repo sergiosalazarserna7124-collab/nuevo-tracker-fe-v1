@@ -389,6 +389,16 @@ export interface CloserMergeRule {
   created_at: string;        // ISO timestamp
 }
 
+/** Info comercial de la cuenta: qué se vendió, cuánto paga, comisiones */
+export interface InfoComercial {
+  productos?: string[];          // ["GHL", "Ads", "LeadMaster", ...]
+  precio_mensual?: number;       // valor de la mensualidad
+  moneda?: string;               // "USD" | "COP" | ...
+  paga_comision?: boolean;       // si paga comisión por ventas
+  comision_pct?: number;         // % de comisión
+  notas?: string;                // notas libres
+}
+
 export const cuentas = pgTable("cuentas", {
   id_cuenta: serial("id_cuenta").primaryKey(),
   nombre_cuenta: varchar("nombre_cuenta"),
@@ -414,6 +424,7 @@ export const cuentas = pgTable("cuentas", {
   ghl_location_id: text("ghl_location_id"),
   locationid: text("locationid"),  // GHL location ID (campo real de la tabla)
   token_ghl: text("token_ghl"),    // Token de GHL de la cuenta (columna creada por el backend)
+  info_comercial: jsonb("info_comercial").$type<InfoComercial>(),  // Qué se vendió, precio, comisión
   ghl_app_uninstalled_at: timestamp("ghl_app_uninstalled_at", { withTimezone: true }),
   // ── V8: reglas de deduplicación inteligente de closers ────────────────────
   closer_merge_rules: jsonb("closer_merge_rules").$type<CloserMergeRule[]>().default([]),

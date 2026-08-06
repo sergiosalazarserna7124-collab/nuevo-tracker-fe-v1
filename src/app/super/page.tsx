@@ -5,6 +5,7 @@ import { verifySuperCookie, getSuperCookieName } from "@/lib/super-verify";
 import SuperTenantList from "./SuperTenantList";
 import SuperLoginForm from "./SuperLoginForm";
 import CrearCuentaForm from "./CrearCuentaForm";
+import FinanzasPanel from "./FinanzasPanel";
 
 export default async function SuperPage() {
   // Panel admin INDEPENDIENTE de next-auth: se autentica solo con la cookie
@@ -40,6 +41,7 @@ export default async function SuperPage() {
           </div>
           <p className="text-sm text-slate-500">{process.env.PLATFORM_ADMIN_EMAIL}</p>
         </div>
+        <FinanzasPanel />
         <CrearCuentaForm />
         <SuperTenantList tenants={rows} />
       </div>

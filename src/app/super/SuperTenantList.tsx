@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { LogIn, Search } from "lucide-react";
+import { LogIn, Search, Settings } from "lucide-react";
 import { normalizeSubdominio } from "@/lib/subdomain";
+import ConfigCuentaForm from "./ConfigCuentaForm";
 
 type TenantRow = {
   id_cuenta: number;
@@ -17,6 +18,7 @@ export default function SuperTenantList({
   tenants: TenantRow[];
 }) {
   const [search, setSearch] = useState("");
+  const [configId, setConfigId] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -58,7 +60,7 @@ export default function SuperTenantList({
                 <th className="px-4 py-3 font-medium text-slate-300">
                   Estado
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-300 w-28">
+                <th className="px-4 py-3 font-medium text-slate-300 w-48">
                   Acción
                 </th>
               </tr>
@@ -93,13 +95,22 @@ export default function SuperTenantList({
                         {t.estado_cuenta ?? "—"}
                       </td>
                       <td className="px-4 py-3">
-                        <a
-                          href={`/api/super/enter?subdominio=${encodeURIComponent(slug)}`}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors"
-                        >
-                          <LogIn className="h-3.5 w-3.5" />
-                          Iniciar
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setConfigId(t.id_cuenta)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800 transition-colors"
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                            Configurar
+                          </button>
+                          <a
+                            href={`/api/super/enter?subdominio=${encodeURIComponent(slug)}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors"
+                          >
+                            <LogIn className="h-3.5 w-3.5" />
+                            Iniciar
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -114,6 +125,10 @@ export default function SuperTenantList({
         Total: {filtered.length}
         {search.trim() ? ` de ${tenants.length} cuentas` : " cuentas"}
       </p>
+
+      {configId !== null && (
+        <ConfigCuentaForm idCuenta={configId} onClose={() => setConfigId(null)} />
+      )}
     </div>
   );
 }
