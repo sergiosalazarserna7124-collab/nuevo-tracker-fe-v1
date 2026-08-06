@@ -73,7 +73,19 @@ export function useApiData<T>(
 
       if (!res.ok) {
         if (res.status === 401) {
-          window.location.href = "/login";
+          // Guard anti-loop: un 401 de UN endpoint (p.ej. un widget secundario)
+          // no debe tumbar toda la sesión en bucle. Si ya redirigimos a /login
+          // por un 401 hace muy poco y volvió a pasar, es un loop: no redirigir
+          // de nuevo, mostrar el error solo en este widget y seguir.
+          const now = Date.now();
+          let lastAt = 0;
+          try { lastAt = Number(sessionStorage.getItem("__auth401At") ?? 0); } catch { /* ignore */ }
+          if (now - lastAt > 8000) {
+            try { sessionStorage.setItem("__auth401At", String(now)); } catch { /* ignore */ }
+            window.location.href = "/login";
+          } else if (!ctrl.signal.aborted) {
+            setError("No autorizado (401)");
+          }
           return;
         }
         const body = await res.json().catch(() => null) as { error?: string; debug?: string } | null;
@@ -82,7 +94,11 @@ export function useApiData<T>(
       }
 
       const json = (await res.json()) as T;
-      if (!ctrl.signal.aborted) setData(json);
+      if (!ctrl.signal.aborted) {
+        // Fetch OK: limpiar el guard para que una expiración real futura sí redirija.
+        try { sessionStorage.removeItem("__auth401At"); } catch { /* ignore */ }
+        setData(json);
+      }
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       if (!ctrl.signal.aborted) setError((e as Error).message);
