@@ -35,6 +35,10 @@ export function useApiData<T>(
   }
 
   const serialized = JSON.stringify(params ?? {});
+  // Clave string ESTABLE de los emails: usar el array directo como dependencia
+  // del useCallback provoca un loop infinito de refetch, porque `?? []` (y el
+  // valor del contexto) crean una referencia nueva en cada render.
+  const closerEmailsKey = effectiveCloserEmails.join(",");
 
   const fetchData = useCallback(async () => {
     // En modo demo: regenerar datos falsos sin fetch
@@ -59,8 +63,8 @@ export function useApiData<T>(
         if (v != null) sp.set(k, v);
       }
 
-      if (effectiveCloserEmails.length > 0 && !sp.has("closerEmails")) {
-        sp.set("closerEmails", effectiveCloserEmails.join(","));
+      if (closerEmailsKey && !sp.has("closerEmails")) {
+        sp.set("closerEmails", closerEmailsKey);
       }
 
       const res = await fetch(`${url}?${sp.toString()}`, {
@@ -85,7 +89,7 @@ export function useApiData<T>(
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
     }
-  }, [url, serialized, effectiveCloserEmails]);
+  }, [url, serialized, closerEmailsKey]);
 
   useEffect(() => {
     if (isDemo || !enabled) return;
