@@ -27,20 +27,26 @@ export default function LoginForm() {
       return;
     }
     // ?from=subdominio: añadido por el middleware cuando redirige desde un subdominio sin sesión
-    // Permite pre-seleccionar automáticamente la cuenta correcta para usuarios multi-cuenta
     const params = new URLSearchParams(window.location.search);
     const from = params.get("from");
-    if (from) setPendingSwitchSubdominio(from);
+    if (from) {
+      setPendingSwitchSubdominio(from);
+      return;
+    }
+    // Entrada del cliente: login.leadmaster.com.co/{id-cuenta}
+    // El middleware renderiza este login manteniendo /{slug} en la URL del navegador,
+    // así que tomamos el slug del primer segmento del path.
+    const seg = window.location.pathname.split("/").filter(Boolean);
+    const RESERVED = ["login", "super", "demo", "dashboard", "app", "enfoque", "cambiar-password", "integraciones"];
+    if (seg.length === 1 && !RESERVED.includes(seg[0])) {
+      setPendingSwitchSubdominio(seg[0]);
+    }
   }, []);
 
-  const buildUrl = (subdominio: string) => {
-    const isLocalDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    const protocol = window.location.protocol;
-    const port = window.location.port ? `:${window.location.port}` : "";
-    return isLocalDev
-      ? `${protocol}//${subdominio}.localhost${port}/dashboard`
-      : `${protocol}//${subdominio}.${rootDomain}/dashboard`;
-  };
+  // Panel único: todos los usuarios entran al MISMO dominio. El tenant se
+  // resuelve desde la sesión (no desde el subdominio de la URL), así que tras
+  // el login siempre vamos a /dashboard en el mismo host.
+  const buildUrl = (_subdominio: string) => "/dashboard";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +54,12 @@ export default function LoginForm() {
     setLoading(true);
 
     try {
-      const result = await loginAction({ email, password });
+      // Si entró por /{id-cuenta}, escopamos el login a esa cuenta
+      const result = await loginAction({
+        email,
+        password,
+        subdominio_override: pendingSwitchSubdominio ?? undefined,
+      });
 
       if (result.error) {
         setError(result.error);

@@ -12,7 +12,6 @@ const GHL_FRAME_ORIGINS = [
 ].join(" ");
 
 // Dominios embed personalizados por subdominio (para clientes WL y CRMs externos).
-// Formato env: EMBED_DOMAINS={"tracker-ikigai":"https://app.ikigai.com.ec","patrimonio-para-tu-familia":"https://crmpatrimonioparatufamilia.netlify.app"}
 let embedDomainsMap: Record<string, string> = {};
 try {
   embedDomainsMap = JSON.parse(process.env.EMBED_DOMAINS ?? "{}");
@@ -31,7 +30,6 @@ function setCspHeaders(response: NextResponse, subdomain: string | null): NextRe
   return response;
 }
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
 const isProduction = process.env.NODE_ENV === "production";
 const COOKIE_NAME = isProduction
   ? "__Secure-next-auth.session-token"
@@ -62,181 +60,102 @@ async function getSession(req: NextRequest): Promise<SessionPayload | null> {
   }
 }
 
-function getHostnameData(req: NextRequest): {
-  isRoot: boolean;
-  subdomain: string | null;
-} {
-  const hostname = req.headers.get("host") || "";
-  const hostnameWithoutPort = hostname.split(":")[0].toLowerCase();
+// Primeros segmentos reservados del sistema (NO son slugs de cuenta de cliente)
+const RESERVED_FIRST = new Set([
+  "login", "super", "api", "webhooks", "demo", "app", "_next",
+  "cambiar-password", "enfoque", "favicon.ico", "integraciones",
+]);
 
-  if (
-    hostnameWithoutPort === "localhost" ||
-    hostnameWithoutPort === "127.0.0.1"
-  ) {
-    return { isRoot: true, subdomain: null };
-  }
-
-  if (hostnameWithoutPort.endsWith(".localhost")) {
-    const sub = hostnameWithoutPort.replace(".localhost", "");
-    if (!sub || sub === "www") return { isRoot: true, subdomain: null };
-    return { isRoot: false, subdomain: sub };
-  }
-
-  if (
-    hostnameWithoutPort === ROOT_DOMAIN ||
-    hostnameWithoutPort === `www.${ROOT_DOMAIN}`
-  ) {
-    return { isRoot: true, subdomain: null };
-  }
-
-  if (hostnameWithoutPort.endsWith(`.${ROOT_DOMAIN}`)) {
-    const sub = hostnameWithoutPort.replace(`.${ROOT_DOMAIN}`, "");
-    if (!sub || sub === "www") return { isRoot: true, subdomain: null };
-    return { isRoot: false, subdomain: sub };
-  }
-
-  return { isRoot: true, subdomain: null };
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
+// RUTEO DE ACCESO
+//
+//   • Clientes → login.leadmaster.com.co/{id-cuenta}
+//       El primer segmento del path es el slug de la cuenta. Muestra el login
+//       de esa cuenta; tras autenticar, el tenant se resuelve desde la SESIÓN.
+//
+//   • Admin (tú) → host oculto en PANEL_ADMIN_HOST (subdominio raro)
+//       Solo sirve /super. Nadie más lo encuentra. El /super del host de
+//       clientes queda bloqueado (redirige a /login) salvo en desarrollo local.
+// ─────────────────────────────────────────────────────────────────────────────
 export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const { isRoot, subdomain } = getHostnameData(req);
+  const host = (req.headers.get("host") || "").split(":")[0].toLowerCase();
+  const adminHost = (process.env.PANEL_ADMIN_HOST || "").toLowerCase();
+  const isLocalhost =
+    host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost");
 
-  // ── Dominio raíz (autokpi.net) ──────────────────────────────────────────
-  if (isRoot) {
-    if (pathname.startsWith("/api/auth")) return setCspHeaders(NextResponse.next(), subdomain);
+  // Passthrough técnico (APIs)
+  if (pathname.startsWith("/api")) return setCspHeaders(NextResponse.next(), null);
 
-    // /demo → público en dominio raíz también
-    if (pathname === "/demo" || pathname.startsWith("/demo/")) {
-      return setCspHeaders(NextResponse.next(), subdomain);
-    }
-
-    const session = await getSession(req);
-
-    if (pathname === "/login") {
-      if (session?.platformAdmin) {
-        return NextResponse.redirect(new URL("/super", req.url));
-      }
-      if (session?.subdominio) {
-        const slug = normalizeSubdominio(session.subdominio);
-        if (slug) {
-          const protocol = req.nextUrl.protocol;
-          const port = req.nextUrl.port ? `:${req.nextUrl.port}` : "";
-          const isLocalDev = (req.headers.get("host") ?? "").includes(
-            "localhost"
-          );
-          const targetHost = isLocalDev
-            ? `${slug}.localhost${port}`
-            : `${slug}.${ROOT_DOMAIN}`;
-          return NextResponse.redirect(
-            new URL(`${protocol}//${targetHost}/dashboard`)
-          );
-        }
-      }
-    }
-
-    if (pathname.startsWith("/super")) {
-      if (!session) {
-        return NextResponse.redirect(new URL("/login", req.url));
-      }
-      if (!session.platformAdmin) {
-        return NextResponse.redirect(new URL("/login", req.url));
-      }
-    }
-
-    return setCspHeaders(NextResponse.next(), subdomain);
+  // ── Host ADMIN oculto: SOLO panel /super ──────────────────────────────────
+  if (adminHost && host === adminHost) {
+    if (pathname.startsWith("/super")) return setCspHeaders(NextResponse.next(), null);
+    return NextResponse.redirect(new URL("/super", req.url));
   }
 
-  // ── Subdominio tenant (ej. testv1.autokpi.net) ──────────────────────────
-  // Todas las rutas /api/* pasan directo sin reescribir
-  if (pathname.startsWith("/api")) return setCspHeaders(NextResponse.next(), subdomain);
-
-  // Webhooks → públicos, sin auth (GHL/Twilio envían POSTs al subdominio)
-  if (pathname.startsWith("/webhooks")) return setCspHeaders(NextResponse.next(), subdomain);
-
-  // Ruta /demo → pública, sin auth
+  // ── Host de CLIENTES ──────────────────────────────────────────────────────
+  if (pathname.startsWith("/webhooks")) return setCspHeaders(NextResponse.next(), null);
   if (pathname === "/demo" || pathname.startsWith("/demo/")) {
-    return setCspHeaders(NextResponse.next(), subdomain);
+    return setCspHeaders(NextResponse.next(), null);
+  }
+  // El panel admin no se ve desde el host de clientes (solo dev local)
+  if (pathname.startsWith("/super")) {
+    if (isLocalhost) return setCspHeaders(NextResponse.next(), null);
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
   const session = await getSession(req);
+  const sessionSlug = session ? normalizeSubdominio(session.subdominio) : null;
 
-  // Construir URL de login
-  const buildLoginUrl = () => {
-    const protocol = req.nextUrl.protocol;
-    const port = req.nextUrl.port ? `:${req.nextUrl.port}` : "";
-    const isLocalDev = (req.headers.get("host") ?? "").includes("localhost");
-    const loginHost = isLocalDev ? `localhost${port}` : ROOT_DOMAIN;
-    return `${protocol}//${loginHost}/login`;
-  };
+  // Login genérico
+  if (pathname === "/login") {
+    if (session?.platformAdmin) return NextResponse.redirect(new URL("/super", req.url));
+    if (sessionSlug) return NextResponse.redirect(new URL("/dashboard", req.url));
+    return setCspHeaders(NextResponse.next(), null);
+  }
 
-  // Sin sesión o sesión de otro tenant → redirigir al login
-  const sessionSubdomain = session ? normalizeSubdominio(session.subdominio) : null;
-  const needsLogin = !session || sessionSubdomain !== subdomain;
-  const staleSession = !!session && sessionSubdomain !== subdomain; // cookie de otro tenant
+  const segments = pathname.split("/").filter(Boolean);
+  const first = segments[0] ?? "";
 
-  if (needsLogin) {
-    if (pathname !== "/login") {
-      // Sesión stale (cookie de otro tenant): intentar auto-switch antes de ir al login.
-      // El auto-switch valida que el usuario tiene acceso al subdomain destino y reescribe
-      // el JWT sin requerir contraseña. Si el usuario no tiene acceso, redirige al login.
-      // Esto permite que usuarios multi-cuenta (ej. monitor@autokpi.internal) naveguen
-      // directamente entre subdominios sin tener que re-autenticarse.
-      if (staleSession && subdomain) {
-        const protocol = req.nextUrl.protocol;
-        const port = req.nextUrl.port ? `:${req.nextUrl.port}` : "";
-        const isLocalDev = (req.headers.get("host") ?? "").includes("localhost");
-        const rootHost = isLocalDev ? `localhost${port}` : ROOT_DOMAIN;
-        const autoSwitchUrl = new URL(`${protocol}//${rootHost}/api/auth/auto-switch`);
-        autoSwitchUrl.searchParams.set("to", subdomain);
-        return NextResponse.redirect(autoSwitchUrl);
-      }
-
-      // Sin sesión: redirigir al login del dominio raíz.
-      // El parámetro `from` permite al login pre-seleccionar automáticamente la cuenta correcta.
-      const loginUrlStr = buildLoginUrl();
-      const loginUrl = new URL(loginUrlStr);
-      if (subdomain) loginUrl.searchParams.set("from", subdomain);
-      return NextResponse.redirect(loginUrl);
+  // ── NO autenticado ────────────────────────────────────────────────────────
+  if (!session || !sessionSlug) {
+    // Landing en "/"
+    if (segments.length === 0) return setCspHeaders(NextResponse.next(), null);
+    // Entrada del cliente: /{slug} → renderizar el login (el form lee el slug del path)
+    if (segments.length === 1 && !RESERVED_FIRST.has(first)) {
+      const slug = normalizeSubdominio(first) ?? first;
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      return setCspHeaders(NextResponse.rewrite(url), slug);
     }
-
-
-    // Ya estamos en /login del dominio raíz (o acceso directo a subdomain/login)
-    // → servir normalmente
-    return setCspHeaders(NextResponse.next(), subdomain);
+    // /{slug}/pagina sin sesión → a la entrada de esa cuenta
+    if (segments.length > 1 && !RESERVED_FIRST.has(first)) {
+      const slug = normalizeSubdominio(first) ?? first;
+      return NextResponse.redirect(new URL(`/${slug}`, req.url));
+    }
+    // Ruta reservada sin sesión → login
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Cambio forzado de contraseña: bloquear todo excepto la propia pantalla y la API
-  if (session.mustChangePassword && pathname !== "/cambiar-password" && !pathname.startsWith("/api")) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/cambiar-password";
-    return NextResponse.redirect(url);
+  // ── Autenticado (tenant desde la SESIÓN) ──────────────────────────────────
+  if (session.mustChangePassword && pathname !== "/cambiar-password") {
+    return NextResponse.redirect(new URL("/cambiar-password", req.url));
+  }
+  if (session.tipoUsuario === "enfoque" && pathname !== "/enfoque") {
+    return NextResponse.redirect(new URL("/enfoque", req.url));
+  }
+  // Raíz, o entrada /{su-propio-slug} estando logueado → su dashboard
+  if (segments.length === 0) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+  if (segments.length === 1 && normalizeSubdominio(first) === sessionSlug) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  // Usuario enfoque: redirigir a /enfoque (kiosko fullscreen)
-  if (session.tipoUsuario === "enfoque" && pathname !== "/enfoque" && !pathname.startsWith("/api")) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/enfoque";
-    return NextResponse.redirect(url);
-  }
-
-  // Raíz del subdominio → /dashboard
-  if (pathname === "/" || pathname === "") {
-    const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
-
-  // /demo no se reescribe — la ruta vive en /app/demo directamente
-  // (ya fue permitida sin auth arriba, pero si llega aquí por otra razón, la dejamos pasar)
-  if (pathname === "/demo" || pathname.startsWith("/demo/")) {
-    return setCspHeaders(NextResponse.next(), subdomain);
-  }
-
-  // Rewrite interno: testv1.autokpi.net/dashboard → /app/testv1/dashboard
+  // Rewrite por sesión: /pagina → /app/{sessionSlug}/pagina
   const url = req.nextUrl.clone();
-  url.pathname = `/app/${subdomain}${pathname}`;
-  return setCspHeaders(NextResponse.rewrite(url), subdomain);
+  url.pathname = `/app/${sessionSlug}${pathname}`;
+  return setCspHeaders(NextResponse.rewrite(url), sessionSlug);
 }
 
 export const config = {
