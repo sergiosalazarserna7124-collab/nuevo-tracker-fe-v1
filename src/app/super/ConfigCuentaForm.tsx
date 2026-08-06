@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCuentaConfig, configurarCuenta } from "./actions";
+import { getCuentaConfig, configurarCuenta, actualizarUsuarioPrincipal } from "./actions";
 import type { InfoComercial } from "@/lib/db/schema";
 
 const ZONAS = [
@@ -28,7 +28,7 @@ const SECCIONES: { key: string; label: string }[] = [
   { key: "accesos", label: "Registro de accesos" },
 ];
 
-const PRODUCTOS = ["GHL", "Ads", "LeadMaster", "Fathom", "Voz IA"];
+const PRODUCTOS = ["GHL", "Ads", "LeadMaster", "Fathom"];
 
 const inputCls =
   "w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none";
@@ -57,6 +57,12 @@ export default function ConfigCuentaForm({
   const [comisionPct, setComisionPct] = useState<string>("");
   const [notas, setNotas] = useState("");
 
+  // Usuario principal
+  const [usuarioId, setUsuarioId] = useState<number | null>(null);
+  const [usuarioNombre, setUsuarioNombre] = useState("");
+  const [usuarioEmail, setUsuarioEmail] = useState("");
+  const [usuarioPass, setUsuarioPass] = useState("");
+
   useEffect(() => {
     (async () => {
       const cfg = await getCuentaConfig(idCuenta);
@@ -74,6 +80,11 @@ export default function ConfigCuentaForm({
         setPagaComision(!!ic.paga_comision);
         setComisionPct(ic.comision_pct != null ? String(ic.comision_pct) : "");
         setNotas(ic.notas ?? "");
+        if (cfg.usuario) {
+          setUsuarioId(cfg.usuario.id_evento);
+          setUsuarioNombre(cfg.usuario.nombre ?? "");
+          setUsuarioEmail(cfg.usuario.email ?? "");
+        }
       }
       setLoading(false);
     })();
@@ -101,8 +112,22 @@ export default function ConfigCuentaForm({
       secciones_ocultas: ocultas,
       info_comercial: info,
     });
+    if ("error" in res && res.error) { setSaving(false); setError(res.error); return; }
+
+    // Guardar usuario principal (si existe)
+    if (usuarioId != null) {
+      const ru = await actualizarUsuarioPrincipal({
+        id_cuenta: idCuenta,
+        id_evento: usuarioId,
+        nombre: usuarioNombre,
+        email: usuarioEmail || undefined,
+        password: usuarioPass || undefined,
+      });
+      if ("error" in ru && ru.error) { setSaving(false); setError(ru.error); return; }
+      setUsuarioPass("");
+    }
+
     setSaving(false);
-    if ("error" in res && res.error) { setError(res.error); return; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -143,6 +168,28 @@ export default function ConfigCuentaForm({
                 </div>
               </div>
             </section>
+
+            {/* Usuario principal */}
+            {usuarioId != null && (
+              <section className="space-y-3">
+                <h4 className="text-sm font-semibold text-blue-400">Usuario principal (acceso del cliente)</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Nombre</label>
+                    <input className={inputCls} value={usuarioNombre} onChange={(e) => setUsuarioNombre(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Correo</label>
+                    <input className={inputCls} type="email" value={usuarioEmail} onChange={(e) => setUsuarioEmail(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Contraseña (nueva)</label>
+                  <input className={inputCls} type="text" value={usuarioPass} onChange={(e) => setUsuarioPass(e.target.value)} placeholder="Dejar vacío para no cambiarla" />
+                  <p className="mt-1 text-xs text-slate-500">Si escribes una, reemplaza la contraseña actual del cliente.</p>
+                </div>
+              </section>
+            )}
 
             {/* Ocultar secciones */}
             <section className="space-y-2">

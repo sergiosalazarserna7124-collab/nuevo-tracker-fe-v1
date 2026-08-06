@@ -8,9 +8,10 @@ import {
   verifySuperCookie,
 } from "@/lib/super-verify";
 import { db } from "@/lib/db";
-import { cuentas, type InfoComercial } from "@/lib/db/schema";
+import { cuentas, usuariosDashboard, type InfoComercial } from "@/lib/db/schema";
 import { createUsuario } from "@/lib/queries/usuarios";
 import { eq, sql } from "drizzle-orm";
+import { hash } from "bcryptjs";
 
 export async function verifySuperAccess(formData: FormData) {
   const email = (formData.get("email") as string)?.trim().toLowerCase();
@@ -155,7 +156,49 @@ export async function getCuentaConfig(idCuenta: number) {
     .from(cuentas)
     .where(eq(cuentas.id_cuenta, idCuenta))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+
+  // Usuario principal de la cuenta (el primero creado / superadmin)
+  const [usuario] = await db
+    .select({
+      id_evento: usuariosDashboard.id_evento,
+      nombre: usuariosDashboard.nombre,
+      email: usuariosDashboard.email,
+    })
+    .from(usuariosDashboard)
+    .where(eq(usuariosDashboard.id_cuenta, idCuenta))
+    .orderBy(usuariosDashboard.id_evento)
+    .limit(1);
+
+  return { ...row, usuario: usuario ?? null };
+}
+
+export async function actualizarUsuarioPrincipal(input: {
+  id_cuenta: number;
+  id_evento: number;
+  nombre?: string;
+  email?: string;
+  password?: string;
+}) {
+  if (!(await requireSuper())) return { error: "Tu sesión de admin expiró." };
+  try {
+    const set: Record<string, unknown> = {};
+    if (input.nombre !== undefined) set.nombre = input.nombre;
+    if (input.email) set.email = input.email.trim().toLowerCase();
+    if (input.password && input.password.trim()) set.pass = await hash(input.password.trim(), 10);
+    if (Object.keys(set).length === 0) return { ok: true as const };
+    await db
+      .update(usuariosDashboard)
+      .set(set)
+      .where(
+        eq(usuariosDashboard.id_evento, input.id_evento),
+      );
+    return { ok: true as const };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/unique|duplicate/i.test(msg)) return { error: "Ese email ya está en uso en otra cuenta." };
+    return { error: msg };
+  }
 }
 
 export interface ConfigurarCuentaInput {
