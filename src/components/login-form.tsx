@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { loginAction } from "@/app/login/actions";
 import type { AccountOption } from "@/app/login/actions";
-import Image from "next/image";
 import { Building2 } from "lucide-react";
 
 export default function LoginForm() {
@@ -104,15 +103,6 @@ export default function LoginForm() {
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-white/10 bg-slate-900/60 shadow-2xl overflow-hidden">
           <div className="p-8 pb-6 flex flex-col items-center gap-4">
-            <div className="h-14 w-14 rounded-xl bg-white p-1 flex items-center justify-center">
-              <Image
-                src="https://i.postimg.cc/pXJdGQmv/Gemini-Generated-Image-4vedz84vedz84ved.png"
-                alt="AutoKPI"
-                width={56}
-                height={56}
-                className="scale-110 object-contain"
-              />
-            </div>
             <div className="text-center">
               <h1 className="text-2xl font-bold text-white">Selecciona tu cuenta</h1>
               <p className="text-sm text-slate-400 mt-1">
@@ -191,19 +181,10 @@ export default function LoginForm() {
     <div className="w-full max-w-md">
       <div className="rounded-2xl border border-white/10 bg-slate-900/60 shadow-2xl overflow-hidden">
         <div className="p-8 pb-6 flex flex-col items-center gap-4">
-          <div className="h-14 w-14 rounded-xl bg-white p-1 flex items-center justify-center">
-            <Image
-              src="https://i.postimg.cc/pXJdGQmv/Gemini-Generated-Image-4vedz84vedz84ved.png"
-              alt="AutoKPI"
-              width={56}
-              height={56}
-              className="scale-110 object-contain"
-            />
-          </div>
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white">Iniciar Sesión</h1>
             <p className="text-sm text-slate-400 mt-1">
-              Ingresa tus credenciales para acceder al dashboard
+              Ingresa tus credenciales para continuar
             </p>
           </div>
         </div>

@@ -119,8 +119,8 @@ export default async function middleware(req: NextRequest) {
 
   // ── NO autenticado ────────────────────────────────────────────────────────
   if (!session || !sessionSlug) {
-    // Landing en "/"
-    if (segments.length === 0) return setCspHeaders(NextResponse.next(), null);
+    // Página inicial → login directo (sin landing de marketing)
+    if (segments.length === 0) return NextResponse.redirect(new URL("/login", req.url));
     // Entrada del cliente: /{slug} → renderizar el login (el form lee el slug del path)
     if (segments.length === 1 && !RESERVED_FIRST.has(first)) {
       const slug = normalizeSubdominio(first) ?? first;
