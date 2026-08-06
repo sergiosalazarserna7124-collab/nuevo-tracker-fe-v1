@@ -3,9 +3,8 @@ import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AutoKPI — Mide todo lo que pasa en tu equipo de ventas",
-  description:
-    "AutoKPI centraliza citas, llamadas y chats de tu equipo comercial. La IA analiza cada conversación y te dice dónde se pierden deals.",
+  title: "LeadMaster",
+  description: "Panel de control",
 };
 
 export default function RootLayout({
