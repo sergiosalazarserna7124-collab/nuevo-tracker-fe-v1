@@ -1,6 +1,5 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import {
@@ -13,11 +12,6 @@ import { cuentas } from "@/lib/db/schema";
 import { createUsuario } from "@/lib/queries/usuarios";
 
 export async function verifySuperAccess(formData: FormData) {
-  const session = await auth();
-  if (!session?.user?.platformAdmin) {
-    return { error: "No tienes permiso para acceder." };
-  }
-
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   const password = formData.get("password") as string;
 
@@ -79,9 +73,7 @@ export interface CrearCuentaInput {
 }
 
 export async function crearCuenta(input: CrearCuentaInput) {
-  // Solo el super admin de plataforma
-  const session = await auth();
-  if (!session?.user?.platformAdmin) return { error: "Sin permiso." };
+  // Autenticado por la cookie "super" (login por env creds), independiente de next-auth
   const cookieStore = await cookies();
   if (!verifySuperCookie(cookieStore.get(getSuperCookieName())?.value)) {
     return { error: "Tu sesión de admin expiró. Vuelve a ingresar." };

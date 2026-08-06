@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { cuentas } from "@/lib/db/schema";
 import { verifySuperCookie, getSuperCookieName } from "@/lib/super-verify";
@@ -9,11 +7,9 @@ import SuperLoginForm from "./SuperLoginForm";
 import CrearCuentaForm from "./CrearCuentaForm";
 
 export default async function SuperPage() {
-  const session = await auth();
-  if (!session?.user?.platformAdmin) {
-    redirect("/login");
-  }
-
+  // Panel admin INDEPENDIENTE de next-auth: se autentica solo con la cookie
+  // "super" (firmada, validada contra PLATFORM_ADMIN_EMAIL/PASSWORD). Así no
+  // depende de la sesión de next-auth, que da problemas entre subdominios.
   const cookieStore = await cookies();
   const superCookie = cookieStore.get(getSuperCookieName())?.value;
   if (!verifySuperCookie(superCookie)) {
@@ -39,10 +35,10 @@ export default async function SuperPage() {
               Administración Plataforma
             </h1>
             <p className="mt-1 text-sm text-slate-400">
-              Selecciona un tenant para entrar como super admin
+              Crea y administra las cuentas de clientes
             </p>
           </div>
-          <p className="text-sm text-slate-500">{session.user.email}</p>
+          <p className="text-sm text-slate-500">{process.env.PLATFORM_ADMIN_EMAIL}</p>
         </div>
         <CrearCuentaForm />
         <SuperTenantList tenants={rows} />
