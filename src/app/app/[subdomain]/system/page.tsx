@@ -174,6 +174,8 @@ interface SystemConfig {
   configuracion_ads?: ConfiguracionAdsLocal;
   ghl_notas?: { ia?: boolean; transcripcion?: boolean };
   ghl_notas_llamadas?: { ia?: boolean; transcripcion?: boolean };
+  ghl_campos?: { ia?: string; transcripcion?: string };
+  ghl_campos_llamadas?: { ia?: string; transcripcion?: string };
   categorias_llamadas?: CategoriaLlamada[];
   secciones_ocultas?: string[];
   ranking_metrica_base?: string | null;
@@ -303,6 +305,11 @@ export default function SystemPage() {
   // Notas GHL para LLAMADAS telefónicas (independiente de videollamadas)
   const [ghlNotasLlamadasIa, setGhlNotasLlamadasIa] = useState<boolean>(true);
   const [ghlNotasLlamadasTranscripcion, setGhlNotasLlamadasTranscripcion] = useState<boolean>(true);
+  // Campos personalizados de GHL (key/id) donde escribir el contenido auto-generado
+  const [ghlCampoIa, setGhlCampoIa] = useState<string>('');
+  const [ghlCampoTranscripcion, setGhlCampoTranscripcion] = useState<string>('');
+  const [ghlCampoLlamadasIa, setGhlCampoLlamadasIa] = useState<string>('');
+  const [ghlCampoLlamadasTranscripcion, setGhlCampoLlamadasTranscripcion] = useState<string>('');
   const [analizandoChats, setAnalizandoChats] = useState(false);
   const [analisisResult, setAnalisisResult] = useState<{ processed: number; updated: number; errors: number; costEstimate: string } | null>(null);
   const [reglasAbiertasMap, setReglasAbiertasMap] = useState<Record<string, boolean>>({});
@@ -468,6 +475,14 @@ export default function SystemPage() {
           setGhlNotasIa(cfg.ghl_notas.ia !== false); // default true
           setGhlNotasTranscripcion(cfg.ghl_notas.transcripcion === true); // default false
         }
+        if (cfg.ghl_campos) {
+          setGhlCampoIa(cfg.ghl_campos.ia ?? '');
+          setGhlCampoTranscripcion(cfg.ghl_campos.transcripcion ?? '');
+        }
+        if (cfg.ghl_campos_llamadas) {
+          setGhlCampoLlamadasIa(cfg.ghl_campos_llamadas.ia ?? '');
+          setGhlCampoLlamadasTranscripcion(cfg.ghl_campos_llamadas.transcripcion ?? '');
+        }
         if ((cfg as any).cerradas_cuentan_como_calificadas !== undefined) {
           setCerradasCuentanComoCal((cfg as any).cerradas_cuentan_como_calificadas);
         }
@@ -613,6 +628,8 @@ export default function SystemPage() {
         chat_analisis_hora: chatAnalisisHora,
         ghl_notas: { ia: ghlNotasIa, transcripcion: ghlNotasTranscripcion },
         ghl_notas_llamadas: { ia: ghlNotasLlamadasIa, transcripcion: ghlNotasLlamadasTranscripcion },
+        ghl_campos: { ia: ghlCampoIa.trim(), transcripcion: ghlCampoTranscripcion.trim() },
+        ghl_campos_llamadas: { ia: ghlCampoLlamadasIa.trim(), transcripcion: ghlCampoLlamadasTranscripcion.trim() },
         fuente_llamadas: fuenteLlamadas,
         ghl_location_id: ghlLocationId.trim() || null,
         cerradas_cuentan_como_calificadas: cerradasCuentanComoCal,
@@ -942,6 +959,37 @@ export default function SystemPage() {
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasTranscripcion ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
+
+                {/* ── Completar campo personalizado de GHL ── */}
+                <div className="pt-3 mt-1 border-t border-accent-amber/20 space-y-3">
+                  <div className="space-y-1">
+                    <span className="text-sm text-white font-medium">Completar campo personalizado de GHL</span>
+                    <p className="text-[11px] text-gray-500">
+                      Además de la nota, el sistema puede escribir el contenido en un campo personalizado (custom field) de GHL.
+                      Pega la <span className="text-accent-amber">key/id</span> del campo (ej. <code className="text-gray-300">contact.transcripcion</code>). Déjalo vacío para no escribir.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-gray-400">Campo para el resumen / análisis IA</label>
+                    <input
+                      type="text"
+                      value={ghlCampoIa}
+                      onChange={(e) => setGhlCampoIa(e.target.value)}
+                      placeholder="ej. contact.resumen_videollamada"
+                      className="w-full rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-amber/40 focus:border-accent-amber/40 transition-colors font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-gray-400">Campo para la transcripción completa</label>
+                    <input
+                      type="text"
+                      value={ghlCampoTranscripcion}
+                      onChange={(e) => setGhlCampoTranscripcion(e.target.value)}
+                      placeholder="ej. contact.transcripcion"
+                      className="w-full rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-amber/40 focus:border-accent-amber/40 transition-colors font-mono"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1000,6 +1048,37 @@ export default function SystemPage() {
                   >
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasLlamadasTranscripcion ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
+                </div>
+
+                {/* ── Completar campo personalizado de GHL ── */}
+                <div className="pt-3 mt-1 border-t border-accent-amber/20 space-y-3">
+                  <div className="space-y-1">
+                    <span className="text-sm text-white font-medium">Completar campo personalizado de GHL</span>
+                    <p className="text-[11px] text-gray-500">
+                      Además de la nota, el sistema puede escribir el contenido en un campo personalizado (custom field) de GHL.
+                      Pega la <span className="text-accent-amber">key/id</span> del campo (ej. <code className="text-gray-300">contact.transcripcion</code>). Déjalo vacío para no escribir.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-gray-400">Campo para el análisis IA</label>
+                    <input
+                      type="text"
+                      value={ghlCampoLlamadasIa}
+                      onChange={(e) => setGhlCampoLlamadasIa(e.target.value)}
+                      placeholder="ej. contact.resumen_llamada"
+                      className="w-full rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-amber/40 focus:border-accent-amber/40 transition-colors font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-gray-400">Campo para la transcripción completa</label>
+                    <input
+                      type="text"
+                      value={ghlCampoLlamadasTranscripcion}
+                      onChange={(e) => setGhlCampoLlamadasTranscripcion(e.target.value)}
+                      placeholder="ej. contact.transcripcion"
+                      className="w-full rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-amber/40 focus:border-accent-amber/40 transition-colors font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 

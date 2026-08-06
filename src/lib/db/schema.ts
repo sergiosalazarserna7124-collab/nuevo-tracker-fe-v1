@@ -58,6 +58,19 @@ export interface ConfiguracionUI {
     ia?: boolean;
     transcripcion?: boolean;
   };
+  /** Campos personalizados de GHL donde escribir el contenido auto-generado de VIDEOLLAMADAS (Fathom).
+   *  Valor = key/id del custom field en GHL (ej. "contact.transcripcion"). Vacío = no escribir. */
+  ghl_campos?: {
+    /** Custom field donde se escribe el resumen/análisis IA */
+    ia?: string;
+    /** Custom field donde se escribe la transcripción completa */
+    transcripcion?: string;
+  };
+  /** Campos personalizados de GHL para LLAMADAS telefónicas. Independiente de ghl_campos (videollamadas). */
+  ghl_campos_llamadas?: {
+    ia?: string;
+    transcripcion?: string;
+  };
   /** Toggle: si true, las etapas con es_cerrada:true también cuentan como calificadas. Default: true */
   cerradas_cuentan_como_calificadas?: boolean;
   secciones_ocultas?: string[];

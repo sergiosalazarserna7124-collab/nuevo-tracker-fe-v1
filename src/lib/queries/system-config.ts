@@ -44,6 +44,9 @@ export interface SystemConfigData {
   /** Control de notas en GHL tras procesar videollamada de Fathom */
   ghl_notas?: { ia?: boolean; transcripcion?: boolean };
   ghl_notas_llamadas?: { ia?: boolean; transcripcion?: boolean };
+  /** Custom fields de GHL donde escribir el contenido auto-generado (key/id del campo) */
+  ghl_campos?: { ia?: string; transcripcion?: string };
+  ghl_campos_llamadas?: { ia?: string; transcripcion?: string };
   /** Toggle: si true, las etapas con es_cerrada:true también cuentan como calificadas */
   cerradas_cuentan_como_calificadas?: boolean;
   categorias_llamadas: CategoriaLlamada[];
@@ -64,6 +67,8 @@ export interface SystemConfigUpdatePayload extends Partial<Omit<SystemConfigData
   ranking_metrica_base?: string | null;
   ghl_notas?: { ia?: boolean; transcripcion?: boolean };
   ghl_notas_llamadas?: { ia?: boolean; transcripcion?: boolean };
+  ghl_campos?: { ia?: string; transcripcion?: string };
+  ghl_campos_llamadas?: { ia?: string; transcripcion?: string };
   cerradas_cuentan_como_calificadas?: boolean;
   categorias_llamadas?: CategoriaLlamada[];
   exclusiones_coach?: ExclusionesCoach | null;
@@ -178,6 +183,8 @@ export async function getSystemConfig(idCuenta: number): Promise<SystemConfigDat
     ranking_metrica_base: (typeof r.configuracion_ui?.ranking_metrica_base === 'string') ? r.configuracion_ui.ranking_metrica_base : null,
     ghl_notas: r.configuracion_ui?.ghl_notas ?? { ia: true, transcripcion: false },
     ghl_notas_llamadas: r.configuracion_ui?.ghl_notas_llamadas ?? { ia: true, transcripcion: true },
+    ghl_campos: r.configuracion_ui?.ghl_campos ?? { ia: "", transcripcion: "" },
+    ghl_campos_llamadas: r.configuracion_ui?.ghl_campos_llamadas ?? { ia: "", transcripcion: "" },
     cerradas_cuentan_como_calificadas: r.configuracion_ui?.cerradas_cuentan_como_calificadas ?? true,
     categorias_llamadas: Array.isArray(r.categorias_llamadas) ? r.categorias_llamadas : [],
     exclusiones_coach: (r.exclusiones_coach && typeof r.exclusiones_coach === "object") ? r.exclusiones_coach as ExclusionesCoach : null,
@@ -279,6 +286,8 @@ export async function updateSystemConfig(
     data.ranking_metrica_base !== undefined ||
     (data as Record<string, unknown>).ghl_notas !== undefined ||
     (data as Record<string, unknown>).ghl_notas_llamadas !== undefined ||
+    (data as Record<string, unknown>).ghl_campos !== undefined ||
+    (data as Record<string, unknown>).ghl_campos_llamadas !== undefined ||
     (data as Record<string, unknown>).cerradas_cuentan_como_calificadas !== undefined
   ) {
     const [row] = await db
@@ -316,6 +325,12 @@ export async function updateSystemConfig(
     }
     if ((data as Record<string, unknown>).ghl_notas_llamadas !== undefined) {
       updatedUi.ghl_notas_llamadas = (data as Record<string, unknown>).ghl_notas_llamadas as { ia?: boolean; transcripcion?: boolean };
+    }
+    if ((data as Record<string, unknown>).ghl_campos !== undefined) {
+      updatedUi.ghl_campos = (data as Record<string, unknown>).ghl_campos as { ia?: string; transcripcion?: string };
+    }
+    if ((data as Record<string, unknown>).ghl_campos_llamadas !== undefined) {
+      updatedUi.ghl_campos_llamadas = (data as Record<string, unknown>).ghl_campos_llamadas as { ia?: string; transcripcion?: string };
     }
     if ((data as Record<string, unknown>).cerradas_cuentan_como_calificadas !== undefined) {
       updatedUi.cerradas_cuentan_como_calificadas = (data as Record<string, unknown>).cerradas_cuentan_como_calificadas as boolean;
