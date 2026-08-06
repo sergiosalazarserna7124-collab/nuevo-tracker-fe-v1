@@ -1,4 +1,4 @@
-// AutoKPI — Report v2 · WS2 capa de agregación (AUT-1302 / AUT-1305)
+// LeadMaster — Report v2 · WS2 capa de agregación (AUT-1302 / AUT-1305)
 // -----------------------------------------------------------------------------
 // `buildReportV2()` produce el `report JSON v2` completo (contrato en
 // `@/types/reportV2`) AMPLIANDO el motor actual (`./report`) — no lo reemplaza.

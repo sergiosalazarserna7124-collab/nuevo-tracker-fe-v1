@@ -1,5 +1,5 @@
 /**
- * Plantilla de métricas base para todos los tenants de AutoKPI.
+ * Plantilla de métricas base para todos los tenants de LeadMaster.
  * Estas 22 métricas replican el sistema anterior y se precargan en cada cuenta nueva.
  * Se aplican también retroactivamente a tenants existentes (ver script de migración).
  *

@@ -294,7 +294,7 @@ export default function PerformanceChatsPage() {
           <div className="space-y-1">
             <p className="font-semibold text-red-200">Integración con GHL desconectada</p>
             <p className="text-xs leading-relaxed">
-              La app de AutoKPI fue desinstalada de tu cuenta de GHL. No estamos recibiendo nuevos chats.
+              La app de LeadMaster fue desinstalada de tu cuenta de GHL. No estamos recibiendo nuevos chats.
               Escribe a <span className="font-semibold text-white">Sergio</span> para que te ayude a reinstalar la app.
               El aviso desaparece automáticamente cuando la integración sea restaurada.
             </p>

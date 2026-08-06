@@ -38,7 +38,7 @@ import { UserFilterProvider, useUserFilter } from "@/contexts/UserFilterContext"
 import { LayoutGrid } from "lucide-react";
 import { puedeVerRuta, NAV_PERMISOS } from "@/lib/permisos";
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
 
 interface AccountItem { id_cuenta: number; nombre_cuenta: string; subdominio: string }
 
@@ -77,7 +77,7 @@ function AccountSwitcher({ currentSubdominio }: { currentSubdominio: string }) {
     if (!res.ok) { setSwitching(null); return; }
     // El middleware detectará que el JWT tiene otro subdominio y redirigirá al login.
     // Guardamos el subdominio destino en sessionStorage para pre-seleccionarlo en login.
-    sessionStorage.setItem("autokpi_switch_subdominio", acc.subdominio);
+    sessionStorage.setItem("lm_switch_subdominio", acc.subdominio);
     window.location.href = target;
   };
 
@@ -575,7 +575,7 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-purple to-accent-cyan flex items-center justify-center shadow-glow-cyan">
               <LayoutDashboard className="w-5 h-5 text-white" />
             </div>
-            <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">AutoKPI</span>
+            <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">LeadMaster</span>
           </Link>
         </div>
         <nav className="flex-1 p-2 overflow-y-auto">
@@ -601,7 +601,7 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
         <button type="button" onClick={() => setSidebarOpen((o) => !o)} className="p-2 rounded-lg hover:bg-surface-600">
           {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
-        <Link href="/dashboard" className="font-display font-semibold text-white">AutoKPI</Link>
+        <Link href="/dashboard" className="font-display font-semibold text-white">LeadMaster</Link>
         <div className="w-10" />
       </header>
 
@@ -613,7 +613,7 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-4 border-b border-surface-500/80 flex items-center justify-between">
-          <span className="font-display font-semibold text-white">AutoKPI</span>
+          <span className="font-display font-semibold text-white">LeadMaster</span>
           <button type="button" onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-surface-600">
             <X className="w-5 h-5" />
           </button>

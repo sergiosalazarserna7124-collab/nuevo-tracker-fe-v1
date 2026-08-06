@@ -1,4 +1,4 @@
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
 
 /**
  * Normaliza un valor de subdominio que puede venir de la BD en muchos formatos
@@ -6,11 +6,11 @@ const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
  *
  * Acepta por ejemplo:
  * - "tracker-grupomexa"
- * - "tracker-grupomexa.autokpi.net"
- * - "https://tracker-grupomexa.autokpi.net"
- * - "https//tracker-grupomexa.autokpi.net" (sin dos puntos)
- * - "http://tracker-grupomexa.autokpi.net"
- * - "https://tracker-grupomexa.autokpi.net/"
+ * - "tracker-grupomexa.leadmaster.com.co"
+ * - "https://tracker-grupomexa.leadmaster.com.co"
+ * - "https//tracker-grupomexa.leadmaster.com.co" (sin dos puntos)
+ * - "http://tracker-grupomexa.leadmaster.com.co"
+ * - "https://tracker-grupomexa.leadmaster.com.co/"
  */
 export function normalizeSubdominio(
   raw: string | null | undefined,

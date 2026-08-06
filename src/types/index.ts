@@ -1,4 +1,4 @@
-// AutoKPI - Data Model V2 (GHL-ready, Marca Blanca)
+// LeadMaster - Data Model V2 (GHL-ready, Marca Blanca)
 
 export type AdvisorRole = 'closer' | 'setter' | 'admin' | 'gerente' | 'director_comercial';
 

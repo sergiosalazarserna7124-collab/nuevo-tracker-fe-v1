@@ -128,7 +128,7 @@ const TESTIMONIALS = [
     role: "VP de Ventas, TechCorp",
     initials: "CM",
     quote:
-      "Antes solo veíamos los números finales. Ahora entendemos exactamente por qué se cierran o se pierden los deals. AutoKPI cambió completamente nuestra forma de gestionar el equipo.",
+      "Antes solo veíamos los números finales. Ahora entendemos exactamente por qué se cierran o se pierden los deals. LeadMaster cambió completamente nuestra forma de gestionar el equipo.",
   },
   {
     name: "Laura Fernández",
@@ -142,7 +142,7 @@ const TESTIMONIALS = [
     role: "CEO, DataSales",
     initials: "AV",
     quote:
-      "El ROI fue inmediato. Dejamos de perder horas en reportes manuales y ahora el equipo se enfoca en vender. La visibilidad que da AutoKPI no tiene comparación.",
+      "El ROI fue inmediato. Dejamos de perder horas en reportes manuales y ahora el equipo se enfoca en vender. La visibilidad que da LeadMaster no tiene comparación.",
   },
 ];
 
@@ -195,13 +195,13 @@ export default function LandingPage() {
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white p-0.5">
               <Image
                 src={LOGO_URL}
-                alt="AutoKPI"
+                alt="LeadMaster"
                 width={40}
                 height={40}
                 className="scale-110 object-contain"
               />
             </span>
-            <span className="text-lg font-bold">AutoKPI</span>
+            <span className="text-lg font-bold">LeadMaster</span>
           </Link>
 
           <nav className="hidden items-center gap-8 md:flex">
@@ -257,7 +257,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400 md:text-xl">
-            AutoKPI centraliza cada cita, llamada telefónica y chat de
+            LeadMaster centraliza cada cita, llamada telefónica y chat de
             tu equipo comercial. La IA analiza cada conversación y te dice dónde
             se están cayendo las ventas — en tiempo real.
           </p>
@@ -291,7 +291,7 @@ export default function LandingPage() {
                 <span className="h-3 w-3 rounded-full bg-green-500" />
               </div>
               <div className="flex-1 rounded-lg bg-slate-800 px-4 py-1.5 text-xs text-slate-500">
-                app.autokpi.com/dashboard
+                app.leadmaster.com.co/dashboard
               </div>
             </div>
 
@@ -349,7 +349,7 @@ export default function LandingPage() {
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">
             La mayoría de equipos comerciales operan a ciegas. Ven los
-            resultados, pero no entienden el proceso. AutoKPI ilumina cada paso
+            resultados, pero no entienden el proceso. LeadMaster ilumina cada paso
             del ciclo de ventas para que sepas exactamente dónde intervenir.
           </p>
         </div>
@@ -501,7 +501,7 @@ export default function LandingPage() {
             </span>
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-lg text-slate-400">
-            Agenda una demo personalizada y descubre cómo AutoKPI puede
+            Agenda una demo personalizada y descubre cómo LeadMaster puede
             transformar la gestión de tu equipo comercial.
           </p>
 
@@ -531,13 +531,13 @@ export default function LandingPage() {
             <span className="flex h-[26px] w-[26px] items-center justify-center rounded-lg bg-white/70 p-0.5">
               <Image
                 src={LOGO_URL}
-                alt="AutoKPI"
+                alt="LeadMaster"
                 width={26}
                 height={26}
                 className="object-contain opacity-70"
               />
             </span>
-            AutoKPI · Todos los derechos reservados{" "}
+            LeadMaster · Todos los derechos reservados{" "}
             {new Date().getFullYear()}
           </div>
 

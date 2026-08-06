@@ -7,7 +7,7 @@
  *   /webhooks/external-data/:sub     → handler interno (direct call)
  *   /webhooks/config/:locationId     → Ya existe nativo en /webhooks/config/[locationId]
  *
- * Usage: acceso via POST autokpi.net/webhooks/proxy/metricas/:sub
+ * Usage: acceso via POST leadmaster.com.co/webhooks/proxy/metricas/:sub
  * (La documentación apunta al proxy, nunca al Cerebro directamente)
  */
 

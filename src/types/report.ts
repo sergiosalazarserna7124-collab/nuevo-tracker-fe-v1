@@ -1,4 +1,4 @@
-// AutoKPI — Report v2 shared types (AUT-381 / AUT-387)
+// LeadMaster — Report v2 shared types (AUT-381 / AUT-387)
 // All blocks are nullable: if the block has no data, the API returns null
 // and the component renders nothing.
 

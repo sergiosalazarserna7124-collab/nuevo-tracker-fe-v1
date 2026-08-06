@@ -19,7 +19,7 @@ import { PERMISOS_DISPONIBLES } from "@/lib/permisos";
 import type { RolConfig } from "@/lib/db/schema";
 
 const isProduction = process.env.NODE_ENV === "production";
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
 const COOKIE_NAME = isProduction
   ? "__Secure-next-auth.session-token"
   : "next-auth.session-token";
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
   const subdominio = body.subdominio?.trim();
   if (!subdominio) return NextResponse.json({ error: "subdominio requerido" }, { status: 400 });
 
-  // Normalizar: aceptar el slug o el dominio completo (ej. "tracker-credivit" o "tracker-credivit.autokpi.net")
+  // Normalizar: aceptar el slug o el dominio completo (ej. "tracker-credivit" o "tracker-credivit.leadmaster.com.co")
   const subdominioSlug = normalizeSubdominio(subdominio) ?? subdominio;
   const subdominioFull = `${subdominioSlug}.${ROOT_DOMAIN}`;
 

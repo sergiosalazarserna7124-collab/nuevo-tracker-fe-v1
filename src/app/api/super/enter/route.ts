@@ -8,7 +8,7 @@ import { normalizeSubdominio } from "@/lib/subdomain";
 import { verifySuperCookie, getSuperCookieName } from "@/lib/super-verify";
 import { PERMISOS_DISPONIBLES } from "@/lib/permisos";
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
 const isProduction = process.env.NODE_ENV === "production";
 const COOKIE_NAME = isProduction
   ? "__Secure-next-auth.session-token"

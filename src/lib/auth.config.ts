@@ -46,9 +46,9 @@ export const authConfig: NextAuthConfig = {
         const email = (credentials.email as string).trim().toLowerCase();
         const password = (credentials.password as string).trim();
         const rawOverride = (credentials.subdominio_override as string | undefined)?.trim() || null;
-        // Normalizar: aceptar slug o dominio completo (ej. "tracker-credivit" o "tracker-credivit.autokpi.net")
+        // Normalizar: aceptar slug o dominio completo (ej. "tracker-credivit" o "tracker-credivit.leadmaster.com.co")
         const subdominioOverride = rawOverride ? (normalizeSubdominio(rawOverride) ?? rawOverride) : null;
-        const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
+        const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
         const subdominioOverrideFull = subdominioOverride ? `${subdominioOverride}.${rootDomain}` : null;
 
         // Usuario plataforma (super admin global): credenciales desde env

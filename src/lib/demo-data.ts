@@ -1,5 +1,5 @@
 /**
- * AutoKPI Demo Data Generator
+ * LeadMaster Demo Data Generator
  * Genera datos falsos realistas para el modo demo público.
  * No requiere auth ni BD. Cada llamada produce datos distintos (seed aleatorio).
  */
@@ -16,11 +16,11 @@ import type {
 
 // Nombres de asesores ficticios consistentes por sesión
 const ASESORES = [
-  { name: "Valentina Ríos", email: "valentina@demo.autokpi.net" },
-  { name: "Sebastián Mora", email: "sebastian@demo.autokpi.net" },
-  { name: "Camila Torres", email: "camila@demo.autokpi.net" },
-  { name: "Diego Herrera", email: "diego@demo.autokpi.net" },
-  { name: "Mariana Castro", email: "mariana@demo.autokpi.net" },
+  { name: "Valentina Ríos", email: "valentina@demo.leadmaster.com.co" },
+  { name: "Sebastián Mora", email: "sebastian@demo.leadmaster.com.co" },
+  { name: "Camila Torres", email: "camila@demo.leadmaster.com.co" },
+  { name: "Diego Herrera", email: "diego@demo.leadmaster.com.co" },
+  { name: "Mariana Castro", email: "mariana@demo.leadmaster.com.co" },
 ];
 
 const OBJECIONES = ["precio", "tiempo", "competencia", "no necesito", "lo pienso", "hablar con pareja"];

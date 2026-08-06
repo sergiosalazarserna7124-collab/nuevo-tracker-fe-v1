@@ -1,4 +1,4 @@
-// AutoKPI — Report JSON v2 shared contract (AUT-1302 · Reporte v2 · WS2)
+// LeadMaster — Report JSON v2 shared contract (AUT-1302 · Reporte v2 · WS2)
 // -----------------------------------------------------------------------------
 // Contrato de datos COMPARTIDO por los 3 workstreams del rediseño del reporte
 // (plan: AUT-1298). Este archivo es la fuente de verdad del *shape* del JSON:

@@ -710,7 +710,7 @@ export default function PerformanceVideollamadasPage() {
           editingMetric={metricaEditingId ? metricasConfig.find((x) => x.id === metricaEditingId) ?? null : null}
           tipoInicial="manual"
           dashboardsPersonalizados={dashboardsPersonalizados}
-          subdominio={typeof window !== "undefined" ? window.location.hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "autokpi.net"}`, "").replace(".localhost", "") : undefined}
+          subdominio={typeof window !== "undefined" ? window.location.hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "leadmaster.com.co"}`, "").replace(".localhost", "") : undefined}
           onClose={() => { setMetricaSheetOpen(false); setMetricaEditingId(null); }}
           onSave={async (config, manualData) => {
             const prev = metricasConfig;

@@ -11,7 +11,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { UserFilterContext, type AsesorOption, type UserFilterContextValue } from "@/contexts/UserFilterContext";
 
 const DEMO_SESSION = {
-  email: "demo@autokpi.net",
+  email: "demo@leadmaster.com.co",
   name: "Demo User",
   rol: "admin",
   permisos: null,
@@ -26,11 +26,11 @@ const DEMO_SESSION = {
 };
 
 const DEMO_ASESORES: AsesorOption[] = [
-  { id: "1", name: "Valentina Ríos", email: "valentina@demo.autokpi.net" },
-  { id: "2", name: "Sebastián Mora", email: "sebastian@demo.autokpi.net" },
-  { id: "3", name: "Camila Torres", email: "camila@demo.autokpi.net" },
-  { id: "4", name: "Diego Herrera", email: "diego@demo.autokpi.net" },
-  { id: "5", name: "Mariana Castro", email: "mariana@demo.autokpi.net" },
+  { id: "1", name: "Valentina Ríos", email: "valentina@demo.leadmaster.com.co" },
+  { id: "2", name: "Sebastián Mora", email: "sebastian@demo.leadmaster.com.co" },
+  { id: "3", name: "Camila Torres", email: "camila@demo.leadmaster.com.co" },
+  { id: "4", name: "Diego Herrera", email: "diego@demo.leadmaster.com.co" },
+  { id: "5", name: "Mariana Castro", email: "mariana@demo.leadmaster.com.co" },
 ];
 
 export function DemoSessionProvider({ children }: { children: ReactNode }) {

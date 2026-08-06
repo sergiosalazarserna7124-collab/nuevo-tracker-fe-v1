@@ -170,7 +170,7 @@ async function exportPdf(
     pdf.setFontSize(7);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(95, 114, 136); // #5F7288
-    pdf.text('Generado por AutoKPI — autokpi.net', marginX, pdfH - footerH + 7);
+    pdf.text('Generado por LeadMaster — leadmaster.com.co', marginX, pdfH - footerH + 7);
     const confText = 'Reporte confidencial · uso interno';
     pdf.text(confText, pdfW - marginX - pdf.getTextWidth(confText), pdfH - footerH + 7);
   }

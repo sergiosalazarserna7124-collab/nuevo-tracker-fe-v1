@@ -46,7 +46,7 @@ export async function POST(
       ...(idCuentaNum !== null ? [eq(cuentas.id_cuenta, idCuentaNum)] : []),
       eq(cuentas.locationid, locationId),
       eq(cuentas.subdominio, locationId),
-      eq(cuentas.subdominio, locationId.includes(".") ? locationId : `${locationId}.autokpi.net`),
+      eq(cuentas.subdominio, locationId.includes(".") ? locationId : `${locationId}.leadmaster.com.co`),
     )!;
 
     if (isGlobalAuth) {

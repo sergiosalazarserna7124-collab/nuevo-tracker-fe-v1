@@ -118,6 +118,6 @@ export function exportDashboardToExcel(
     XLSX.utils.book_append_sheet(wb, wsMetas, 'Metas');
   }
 
-  const filename = `AutoKPI_Dashboard_${dateFrom}_${dateTo}.xlsx`;
+  const filename = `LeadMaster_Dashboard_${dateFrom}_${dateTo}.xlsx`;
   XLSX.writeFile(wb, filename);
 }

@@ -1962,7 +1962,7 @@ export default function SystemPage() {
                   editingMetric={metricasEditingId ? metricasConfig.find((x) => x.id === metricasEditingId) ?? null : null}
                   tipoInicial={metricasSheetTipo}
                   dashboardsPersonalizados={dashboardsPersonalizados}
-                  subdominio={typeof window !== "undefined" ? window.location.hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "autokpi.net"}`, "").replace(".localhost", "") : undefined}
+                  subdominio={typeof window !== "undefined" ? window.location.hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "leadmaster.com.co"}`, "").replace(".localhost", "") : undefined}
                   onClose={() => {
                     setMetricasSheetOpen(false);
                     setMetricasEditingId(null);
@@ -3082,7 +3082,7 @@ export default function SystemPage() {
                 <div className="rounded-xl p-5 border border-surface-500 bg-surface-800/50 text-center space-y-2">
                   <ShieldCheck className="w-8 h-8 text-gray-600 mx-auto" />
                   <p className="text-sm text-gray-400">El Coach de ventas no está habilitado para esta cuenta.</p>
-                  <p className="text-xs text-gray-500">Contacta al equipo de AutoKPI para activar esta función.</p>
+                  <p className="text-xs text-gray-500">Contacta al equipo de LeadMaster para activar esta función.</p>
                 </div>
               )}
 

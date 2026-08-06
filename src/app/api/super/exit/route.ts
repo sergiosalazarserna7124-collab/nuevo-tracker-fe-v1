@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
 const isProduction = process.env.NODE_ENV === "production";
 const COOKIE_NAME = isProduction
   ? "__Secure-next-auth.session-token"

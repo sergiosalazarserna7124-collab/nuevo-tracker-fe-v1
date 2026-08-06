@@ -182,7 +182,7 @@ async function sendProvisionalEmail(
       .where(eq(cuentas.id_cuenta, idCuenta))
       .limit(1);
     const slug = normalizeSubdominio(cuenta?.subdominio) ?? "app";
-    const loginUrl = `https://${slug}.autokpi.net`;
+    const loginUrl = `https://${slug}.leadmaster.com.co`;
     await sendProvisionalPasswordEmail({ to: email, nombre, provisional, loginUrl });
   } catch (err) {
     console.error("[usuarios] Error enviando email provisional:", err);

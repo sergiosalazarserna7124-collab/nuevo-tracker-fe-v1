@@ -14,14 +14,14 @@ export default function LoginForm() {
 
   const [accountLoading, setAccountLoading] = useState<number | null>(null);
   const [pendingSwitchSubdominio, setPendingSwitchSubdominio] = useState<string | null>(null);
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
 
   // Si viene de un account switch o redirigido desde un subdominio, auto-seleccionar la cuenta correcta
   useEffect(() => {
     // sessionStorage: usado cuando el usuario cambia de cuenta desde el dashboard
-    const pending = sessionStorage.getItem("autokpi_switch_subdominio");
+    const pending = sessionStorage.getItem("lm_switch_subdominio");
     if (pending) {
-      sessionStorage.removeItem("autokpi_switch_subdominio");
+      sessionStorage.removeItem("lm_switch_subdominio");
       setPendingSwitchSubdominio(pending);
       return;
     }

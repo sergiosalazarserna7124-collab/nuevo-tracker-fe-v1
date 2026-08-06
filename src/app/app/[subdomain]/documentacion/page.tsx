@@ -95,7 +95,7 @@ function TriggerSection({ triggers }: { triggers: SystemConfig["chat_triggers"] 
           </div>
           <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-full bg-accent-cyan/20 text-accent-cyan flex items-center justify-center text-xs font-bold">2</span>
-            <span>AutoKPI detecta automáticamente el trigger en los mensajes del agente.</span>
+            <span>LeadMaster detecta automáticamente el trigger en los mensajes del agente.</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-full bg-accent-cyan/20 text-accent-cyan flex items-center justify-center text-xs font-bold">3</span>
@@ -157,7 +157,7 @@ function TriggerSection({ triggers }: { triggers: SystemConfig["chat_triggers"] 
 
 function WebhookMetricasSection() {
   const subdominio = typeof window !== "undefined"
-    ? window.location.hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "autokpi.net"}`, "").replace(".localhost", "")
+    ? window.location.hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "leadmaster.com.co"}`, "").replace(".localhost", "")
     : "tu-subdominio";
   const webhookUrl = `${WEBHOOK_PROXY_URL}/metricas/${subdominio}`;
 
@@ -500,7 +500,7 @@ function ApiSection() {
   }, null, 2);
 
   const subdominio = typeof window !== "undefined"
-    ? window.location.hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "autokpi.net"}`, "").replace(".localhost", "")
+    ? window.location.hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "leadmaster.com.co"}`, "").replace(".localhost", "")
     : "tu-subdominio";
   const webhookUrl = `${WEBHOOK_PROXY_URL}/external-data/${subdominio}`;
   const curlExample = `curl -X POST \\
@@ -518,7 +518,7 @@ function ApiSection() {
         <div>
           <h3 className="text-lg font-semibold text-white">API Externa de Ingresos</h3>
           <p className="text-sm text-gray-400 mt-1">
-            Conecta tu sistema de facturación, CRM o ERP para inyectar datos financieros reales a tu panel AutoKPI.
+            Conecta tu sistema de facturación, CRM o ERP para inyectar datos financieros reales a tu panel LeadMaster.
           </p>
         </div>
       </div>
@@ -1124,7 +1124,7 @@ export default function DocumentacionPage() {
                 Superpoderes de tu Panel
               </h1>
               <p className="text-sm text-gray-400">
-                AutoKPI v2.0 — Marca blanca, embudos dinámicos y triggers inteligentes
+                LeadMaster v2.0 — Marca blanca, embudos dinámicos y triggers inteligentes
               </p>
             </div>
           </div>

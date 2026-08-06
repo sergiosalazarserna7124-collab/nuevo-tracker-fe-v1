@@ -3,7 +3,7 @@
  *
  * Cambia automáticamente la cuenta activa del usuario cuando navega a un
  * subdominio diferente al de su sesión actual (p. ej. monitor con sesión
- * sharkrealtor accede a high-line-mexico.autokpi.net).
+ * sharkrealtor accede a high-line-mexico.leadmaster.com.co).
  *
  * Flujo:
  * 1. El middleware detecta sesión "stale" (JWT de otro subdomain) y redirige aquí.
@@ -25,7 +25,7 @@ import { PERMISOS_DISPONIBLES } from "@/lib/permisos";
 import type { RolConfig } from "@/lib/db/schema";
 
 const isProduction = process.env.NODE_ENV === "production";
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
 const COOKIE_NAME = isProduction
   ? "__Secure-next-auth.session-token"
   : "next-auth.session-token";

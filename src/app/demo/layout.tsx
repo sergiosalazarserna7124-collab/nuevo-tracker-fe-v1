@@ -78,7 +78,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-purple to-accent-cyan flex items-center justify-center shadow-glow-cyan">
                 <LayoutDashboard className="w-5 h-5 text-white" />
               </div>
-              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">AutoKPI</span>
+              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">LeadMaster</span>
             </Link>
             <span className="mt-1 inline-block text-[10px] px-2 py-0.5 rounded bg-accent-amber/20 text-accent-amber border border-accent-amber/40 font-medium uppercase">
               Demo
@@ -126,7 +126,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
             {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
           <span className="font-display font-semibold text-white flex items-center gap-2">
-            AutoKPI
+            LeadMaster
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-amber/20 text-accent-amber border border-accent-amber/40 font-medium uppercase">Demo</span>
           </span>
           <button type="button" onClick={handleReload} className="p-2 rounded-lg hover:bg-surface-600 text-accent-cyan" title="Nuevos datos">
@@ -142,7 +142,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <div className="p-4 border-b border-surface-500/80 flex items-center justify-between">
-            <span className="font-display font-semibold text-white">AutoKPI Demo</span>
+            <span className="font-display font-semibold text-white">LeadMaster Demo</span>
             <button type="button" onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-surface-600">
               <X className="w-5 h-5" />
             </button>

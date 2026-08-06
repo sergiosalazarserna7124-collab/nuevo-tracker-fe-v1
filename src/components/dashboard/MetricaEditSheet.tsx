@@ -599,7 +599,7 @@ export default function MetricaEditSheet({
               <div className="rounded-lg bg-accent-cyan/5 border border-accent-cyan/20 p-3 text-xs text-gray-400 space-y-2">
                 <p className="text-white font-medium">¿Cómo funciona?</p>
                 <p>Envía datos desde cualquier sistema externo (n8n, GHL, Zapier) al webhook de tu cuenta. El valor de este campo aparecerá aquí automáticamente.</p>
-                <p className="text-accent-cyan">URL: <code className="bg-surface-700 px-1 py-0.5 rounded">autokpi.net/webhooks/proxy/metricas/{subdominio ?? '[tu-subdominio]'}</code></p>
+                <p className="text-accent-cyan">URL: <code className="bg-surface-700 px-1 py-0.5 rounded">leadmaster.com.co/webhooks/proxy/metricas/{subdominio ?? '[tu-subdominio]'}</code></p>
                 {tenantApiKey ? (
                   <div className="flex items-center gap-2">
                     <span className="text-gray-400 shrink-0">Tu API Key:</span>
@@ -682,7 +682,7 @@ export default function MetricaEditSheet({
                 )}
               </div>
               <div className="rounded-lg bg-surface-700/40 p-3 text-xs text-gray-500 font-mono whitespace-pre">
-                {`POST autokpi.net/webhooks/proxy/metricas/${subdominio ?? '[tu-subdominio]'}\nx-api-key: ${tenantApiKey ?? '[crea una API Key en Documentación]'}\n\n{\n  "${webhookCampo || "nombre_campo"}": 42,\n  "fecha": "2026-04-08T14:30:00-05:00"\n}`}
+                {`POST leadmaster.com.co/webhooks/proxy/metricas/${subdominio ?? '[tu-subdominio]'}\nx-api-key: ${tenantApiKey ?? '[crea una API Key en Documentación]'}\n\n{\n  "${webhookCampo || "nombre_campo"}": 42,\n  "fecha": "2026-04-08T14:30:00-05:00"\n}`}
               </div>
               <p className="text-[10px] text-gray-500">
                 💡 El campo <code className="bg-surface-700 px-1 rounded text-accent-cyan">fecha</code> acepta fecha (<code>2026-04-08</code>) o fecha+hora con zona horaria (<code>2026-04-08T14:30:00-05:00</code>). El sistema convierte automáticamente a UTC.

@@ -19,13 +19,13 @@ export default function IntegracionesPage() {
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white p-0.5">
               <Image
                 src={LOGO_URL}
-                alt="AutoKPI"
+                alt="LeadMaster"
                 width={40}
                 height={40}
                 className="scale-110 object-contain"
               />
             </span>
-            <span className="text-lg font-bold">AutoKPI</span>
+            <span className="text-lg font-bold">LeadMaster</span>
           </Link>
           <Link
             href="/"
@@ -91,7 +91,7 @@ export default function IntegracionesPage() {
           <p className="mb-4 text-sm text-slate-400">
             Reemplaza <code className="rounded bg-slate-800 px-1.5 py-0.5">{`{tu-subdominio}`}</code> por el
             subdominio del cliente (ej. si accede a{" "}
-            <code className="rounded bg-slate-800 px-1.5 py-0.5">acme.autokpi.net</code>, usa{" "}
+            <code className="rounded bg-slate-800 px-1.5 py-0.5">acme.leadmaster.com.co</code>, usa{" "}
             <code className="rounded bg-slate-800 px-1.5 py-0.5">acme</code>).
           </p>
 
@@ -102,7 +102,7 @@ export default function IntegracionesPage() {
             </div>
             <p className="text-sm text-slate-300">
               Deben enviar el header <code className="rounded bg-slate-800 px-1.5 py-0.5">x-api-key</code> con el
-              token que les generaste (ej. <code className="rounded bg-slate-800 px-1.5 py-0.5">autokpi_live_abc123...</code>).
+              token que les generaste (ej. <code className="rounded bg-slate-800 px-1.5 py-0.5">lm_live_abc123...</code>).
               Si no lo envían, el Cerebro rechaza la petición.
             </p>
           </div>
@@ -153,7 +153,7 @@ export default function IntegracionesPage() {
           <pre className="overflow-x-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-400">
 {`curl -X POST "${webhookUrl}" \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: autokpi_live_TU_TOKEN_AQUI" \\
+  -H "x-api-key: lm_live_TU_TOKEN_AQUI" \\
   -d '{
     "data": [
       { "fecha": "2026-03-02", "metricas": { "facturacion": 1500, "cash_collected": 500 } }

@@ -31,7 +31,7 @@ export interface UserFilterContextValue {
 
 export const UserFilterContext = createContext<UserFilterContextValue | null>(null);
 
-const LS_ASESORES = "autokpi_asesores_seleccionados";
+const LS_ASESORES = "lm_asesores_seleccionados";
 
 function parseStoredAsesores(raw: string | null): string[] {
   if (!raw?.trim()) return [];

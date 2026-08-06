@@ -86,7 +86,7 @@ export default function DemoModal({ open, onOpenChange }: DemoModalProps) {
               <Video className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Demo en Vivo — AutoKPI</h2>
+              <h2 className="text-lg font-semibold">Demo en Vivo — LeadMaster</h2>
               <p className="text-sm text-slate-400">
                 30 minutos · Cita · Sin compromiso
               </p>
@@ -301,7 +301,7 @@ export default function DemoModal({ open, onOpenChange }: DemoModalProps) {
                 con el enlace de cita.
               </p>
               <p className="text-slate-500 text-xs mb-6 max-w-sm">
-                Prepárate para ver en vivo cómo AutoKPI puede transformar la
+                Prepárate para ver en vivo cómo LeadMaster puede transformar la
                 visibilidad de tu proceso comercial.
               </p>
               <button

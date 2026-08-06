@@ -1,4 +1,4 @@
-// AutoKPI — Report v2 · enrichment provider (AUT-1302 / AUT-1403)
+// LeadMaster — Report v2 · enrichment provider (AUT-1302 / AUT-1403)
 // -----------------------------------------------------------------------------
 // `getEnrichmentFromDb` lee la columna JSONB `gemini_enriquecimiento` de las
 // tablas de interacción (chats_logs, log_llamadas, resumenes_diarios_agendas,

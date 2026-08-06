@@ -56,7 +56,7 @@ function buildSystemPrompt(nombreCuenta: string, from: string, to: string, data:
 
   const llamadasNote = "";
 
-  return `Eres el asistente de análisis de ventas de AutoKPI para ${nombreCuenta}.
+  return `Eres el asistente de análisis de ventas de LeadMaster para ${nombreCuenta}.
 Aquí están los datos del período ${from} al ${to}:
 
 LLAMADAS: ${kpis.callsMade} totales, ${kpis.contestadas} contestadas (${(kpis.answerRate * 100).toFixed(1)}% contestación), speed to lead promedio ${speedToLeadMin}

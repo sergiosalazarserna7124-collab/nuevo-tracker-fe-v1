@@ -43,7 +43,7 @@ export function exportVideollamadas(
   XLSX.utils.book_append_sheet(wb, ws, 'Videollamadas');
 
   const suffix = advisorFilter ? `_${advisorFilter.replace(/[^a-zA-Z0-9]/g, '_')}` : '_todos';
-  downloadWorkbook(wb, `AutoKPI_Videollamadas${suffix}_${dateFrom}_${dateTo}.xlsx`);
+  downloadWorkbook(wb, `LeadMaster_Videollamadas${suffix}_${dateFrom}_${dateTo}.xlsx`);
 }
 
 export function exportLlamadas(
@@ -106,7 +106,7 @@ export function exportLlamadas(
   XLSX.utils.book_append_sheet(wb, wsCalls, 'Llamadas');
 
   const suffix = advisorFilter ? `_${advisorFilter.replace(/[^a-zA-Z0-9]/g, '_')}` : '_todos';
-  downloadWorkbook(wb, `AutoKPI_Llamadas${suffix}_${dateFrom}_${dateTo}.xlsx`);
+  downloadWorkbook(wb, `LeadMaster_Llamadas${suffix}_${dateFrom}_${dateTo}.xlsx`);
 }
 
 export function exportChats(
@@ -148,5 +148,5 @@ export function exportChats(
   XLSX.utils.book_append_sheet(wb, ws, 'Chats');
 
   const suffix = advisorFilter ? `_${advisorFilter.replace(/[^a-zA-Z0-9]/g, '_')}` : '_todos';
-  downloadWorkbook(wb, `AutoKPI_Chats${suffix}_${dateFrom}_${dateTo}.xlsx`);
+  downloadWorkbook(wb, `LeadMaster_Chats${suffix}_${dateFrom}_${dateTo}.xlsx`);
 }

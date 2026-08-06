@@ -1,4 +1,4 @@
-// AutoKPI — Report v2 · Narrativa ejecutiva con Gemini (AUT-1302 / WS2)
+// LeadMaster — Report v2 · Narrativa ejecutiva con Gemini (AUT-1302 / WS2)
 // -----------------------------------------------------------------------------
 // Genera el resumen ejecutivo a partir de los AGREGADOS del reporte v2 (no de
 // 2-3 llamadas). Motor = Gemini (contexto grande + costo, decisión del plan).
