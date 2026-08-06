@@ -69,6 +69,8 @@ export default function MapaTiempos({
       asesor: asesorFilter || undefined,
       lead: leadId || undefined,
     },
+    // Widget secundario: un 401 aquí NO debe redirigir/recargar todo el panel.
+    { redirectOn401: false },
   );
 
   const asesores = data?.asesores ?? [];

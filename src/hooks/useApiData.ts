@@ -8,9 +8,12 @@ import { useUserFilter } from "@/contexts/UserFilterContext";
 export function useApiData<T>(
   url: string,
   params?: Record<string, string | undefined>,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; redirectOn401?: boolean },
 ) {
   const enabled = options?.enabled ?? true;
+  // Por defecto un 401 redirige a /login (sesión expirada). Widgets secundarios
+  // pueden desactivarlo para que su 401 NO tumbe/recargue todo el panel.
+  const redirectOn401 = options?.redirectOn401 ?? true;
   const pathname = usePathname();
   const isDemo = pathname?.startsWith("/demo") ?? false;
 
@@ -73,6 +76,11 @@ export function useApiData<T>(
 
       if (!res.ok) {
         if (res.status === 401) {
+          // Widget que opta por NO redirigir: solo error local, nunca toca la navegación.
+          if (!redirectOn401) {
+            if (!ctrl.signal.aborted) setError("No autorizado (401)");
+            return;
+          }
           // Guard anti-loop: un 401 de UN endpoint (p.ej. un widget secundario)
           // no debe tumbar toda la sesión en bucle. Si ya redirigimos a /login
           // por un 401 hace muy poco y volvió a pasar, es un loop: no redirigir
@@ -105,7 +113,7 @@ export function useApiData<T>(
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
     }
-  }, [url, serialized, closerEmailsKey]);
+  }, [url, serialized, closerEmailsKey, redirectOn401]);
 
   useEffect(() => {
     if (isDemo || !enabled) return;
