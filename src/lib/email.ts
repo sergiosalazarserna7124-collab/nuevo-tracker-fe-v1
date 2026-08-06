@@ -26,9 +26,9 @@ export async function sendProvisionalPasswordEmail({
 <html lang="es">
 <head><meta charset="utf-8"></head>
 <body style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:520px;margin:0 auto;padding:24px">
-  <h2 style="color:#111827">Bienvenido a AutoKPI</h2>
+  <h2 style="color:#111827">Bienvenido a LeadMaster</h2>
   <p>Hola <strong>${escapeHtml(nombre)}</strong>,</p>
-  <p>Se ha creado tu cuenta en AutoKPI. Usa las siguientes credenciales para iniciar sesión:</p>
+  <p>Se ha creado tu cuenta en LeadMaster. Usa las siguientes credenciales para iniciar sesión:</p>
   <table style="margin:16px 0;border-collapse:collapse">
     <tr>
       <td style="padding:6px 12px;font-weight:bold">Email</td>
@@ -55,7 +55,7 @@ export async function sendProvisionalPasswordEmail({
     await resend.emails.send({
       from: EMAIL_FROM,
       to,
-      subject: "Tu cuenta de AutoKPI — Contraseña provisional",
+      subject: "Tu cuenta de LeadMaster — Contraseña provisional",
       html,
     });
   } catch (err) {

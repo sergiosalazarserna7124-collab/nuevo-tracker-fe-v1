@@ -6,6 +6,7 @@ import { cuentas } from "@/lib/db/schema";
 import { verifySuperCookie, getSuperCookieName } from "@/lib/super-verify";
 import SuperTenantList from "./SuperTenantList";
 import SuperLoginForm from "./SuperLoginForm";
+import CrearCuentaForm from "./CrearCuentaForm";
 
 export default async function SuperPage() {
   const session = await auth();
@@ -43,6 +44,7 @@ export default async function SuperPage() {
           </div>
           <p className="text-sm text-slate-500">{session.user.email}</p>
         </div>
+        <CrearCuentaForm />
         <SuperTenantList tenants={rows} />
       </div>
     </div>

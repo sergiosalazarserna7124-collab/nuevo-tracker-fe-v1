@@ -413,6 +413,7 @@ export const cuentas = pgTable("cuentas", {
   configuracion_ads: jsonb("configuracion_ads").$type<ConfiguracionAds>(),
   ghl_location_id: text("ghl_location_id"),
   locationid: text("locationid"),  // GHL location ID (campo real de la tabla)
+  token_ghl: text("token_ghl"),    // Token de GHL de la cuenta (columna creada por el backend)
   ghl_app_uninstalled_at: timestamp("ghl_app_uninstalled_at", { withTimezone: true }),
   // ── V8: reglas de deduplicación inteligente de closers ────────────────────
   closer_merge_rules: jsonb("closer_merge_rules").$type<CloserMergeRule[]>().default([]),
