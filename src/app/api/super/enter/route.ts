@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { getToken, encode } from "@auth/core/jwt";
+import { cookies } from "next/headers";
+import { encode } from "@auth/core/jwt";
 import { db } from "@/lib/db";
 import { cuentas } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeSubdominio } from "@/lib/subdomain";
+import { verifySuperCookie, getSuperCookieName } from "@/lib/super-verify";
+import { PERMISOS_DISPONIBLES } from "@/lib/permisos";
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "autokpi.net";
 const isProduction = process.env.NODE_ENV === "production";
@@ -13,21 +15,26 @@ const COOKIE_NAME = isProduction
   : "next-auth.session-token";
 const cookieDomain = isProduction ? `.${ROOT_DOMAIN}` : undefined;
 
+/**
+ * "Entrar" a una cuenta desde el panel admin (impersonación).
+ * Autenticado con la cookie "super" (independiente de next-auth). Crea una
+ * sesión next-auth para el tenant y redirige al dashboard del cliente
+ * (login.<root>/dashboard — el tenant se resuelve desde la sesión).
+ */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const subdominio = searchParams.get("subdominio")?.trim().toLowerCase();
   if (!subdominio) {
-    return NextResponse.json(
-      { error: "Falta subdominio" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Falta subdominio" }, { status: 400 });
   }
 
-  const session = await auth();
-  if (!session?.user?.platformAdmin) {
+  // Auth: cookie super del admin
+  const cookieStore = await cookies();
+  if (!verifySuperCookie(cookieStore.get(getSuperCookieName())?.value)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
+  // Buscar tenant
   type CuentaRow = { id_cuenta: number; subdominio: string };
   const primera = await db
     .select({ id_cuenta: cuentas.id_cuenta, subdominio: cuentas.subdominio })
@@ -39,36 +46,36 @@ export async function GET(req: Request) {
   if (!cuenta) {
     const slug = normalizeSubdominio(subdominio);
     if (slug) {
-      const todas = await db.select({ id_cuenta: cuentas.id_cuenta, subdominio: cuentas.subdominio }).from(cuentas);
-      const encontrada = todas.find((c) => normalizeSubdominio(c.subdominio) === slug);
-      cuenta = encontrada ?? null;
+      const todas = await db
+        .select({ id_cuenta: cuentas.id_cuenta, subdominio: cuentas.subdominio })
+        .from(cuentas);
+      cuenta = todas.find((c) => normalizeSubdominio(c.subdominio) === slug) ?? null;
     }
   }
 
   if (!cuenta) {
-    return NextResponse.json(
-      { error: "Tenant no encontrado" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Tenant no encontrado" }, { status: 404 });
   }
 
   const subdominioSlug = normalizeSubdominio(cuenta.subdominio) ?? cuenta.subdominio;
 
-  const token = await getToken({
-    req,
-    cookieName: COOKIE_NAME,
-    secret: process.env.AUTH_SECRET!,
-    salt: COOKIE_NAME,
-  });
-
-  if (!token) {
-    return NextResponse.json({ error: "Sesión no encontrada" }, { status: 401 });
-  }
-
+  // Token de impersonación: sesión next-auth con acceso total al tenant
+  const allPermisos = PERMISOS_DISPONIBLES.map((p) => p.id);
+  const now = Math.floor(Date.now() / 1000);
   const newToken = {
-    ...token,
+    id: "platform-admin",
+    email: process.env.PLATFORM_ADMIN_EMAIL ?? "admin@plataforma",
+    name: "Administrador Plataforma",
     subdominio: subdominioSlug,
     id_cuenta: cuenta.id_cuenta,
+    rol: "superadmin",
+    permisos: null,
+    permisosArray: allPermisos,
+    platformAdmin: true,
+    tipoUsuario: "analista" as const,
+    mustChangePassword: false,
+    iat: now,
+    exp: now + 30 * 24 * 60 * 60,
   };
 
   const encoded = await encode({
@@ -77,19 +84,13 @@ export async function GET(req: Request) {
     salt: COOKIE_NAME,
   });
 
-  const currentHost = req.headers.get("host") ?? "";
-  const isLocalDev = currentHost.includes("localhost");
-  const protocol = req.headers.get("x-forwarded-proto") || (isLocalDev ? "http" : "https");
-  const portPart = currentHost.includes(":") ? ":" + currentHost.split(":")[1] : "";
-  const host = isLocalDev
-    ? `${subdominioSlug}.localhost${portPart}`
-    : `${subdominioSlug}.${ROOT_DOMAIN}`;
-  const redirectUrl = `${protocol}://${host}/dashboard`;
+  // Dashboard del cliente en el host de clientes (ruteo por sesión)
+  const redirectUrl = `https://login.${ROOT_DOMAIN}/dashboard`;
 
   const res = NextResponse.redirect(redirectUrl);
   res.cookies.set(COOKIE_NAME, encoded, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: isProduction ? "none" : "lax",
     path: "/",
     secure: isProduction,
     domain: cookieDomain,
