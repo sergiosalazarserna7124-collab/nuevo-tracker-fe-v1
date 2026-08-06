@@ -8,7 +8,7 @@
  *
  * Ejemplo:
  *   POST /webhooks/metricas/sharkrealtor
- *   Headers: x-api-key: ak_xxx
+ *   Headers: x-api-key: lm_xxx
  *   Body: { "ventas_cerradas": 3, "facturacion_usd": 15000, "leads_fb": 45 }
  */
 import { NextResponse } from "next/server";

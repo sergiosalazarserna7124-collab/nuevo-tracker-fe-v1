@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   return withAuthAndPermission(req, "configurar_sistema", async (idCuenta, email) => {
     const body = await req.json() as { nombre_key?: string };
     const nombre = body.nombre_key?.trim() || "API Key";
-    const token = "ak_" + randomBytes(24).toString("hex");
+    const token = "lm_" + randomBytes(24).toString("hex");
     const [created] = await db
       .insert(apiKeysCuenta)
       .values({ id_cuenta: idCuenta, nombre_key: nombre, token, activa: true })
