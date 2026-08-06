@@ -109,7 +109,12 @@ export default async function middleware(req: NextRequest) {
 
   // Login genérico
   if (pathname === "/login") {
-    if (session?.platformAdmin) return NextResponse.redirect(new URL("/super", req.url));
+    // Solo redirigir un platformAdmin a /super donde /super realmente se sirve
+    // (host admin o localhost). En el host de CLIENTES /super está bloqueado y
+    // redirige a /login → mandar el admin a /super crea un bucle infinito.
+    if (session?.platformAdmin && (host === adminHost || isLocalhost)) {
+      return NextResponse.redirect(new URL("/super", req.url));
+    }
     if (sessionSlug) return NextResponse.redirect(new URL("/dashboard", req.url));
     return setCspHeaders(NextResponse.next(), null);
   }
@@ -138,10 +143,18 @@ export default async function middleware(req: NextRequest) {
   }
 
   // ── Autenticado (tenant desde la SESIÓN) ──────────────────────────────────
+  // mustChangePassword tiene PRIORIDAD: mientras esté activo, el usuario va a
+  // /cambiar-password. La regla de enfoque NO debe rebotarlo de vuelta (eso
+  // creaba el bucle /cambiar-password ⇄ /enfoque).
   if (session.mustChangePassword && pathname !== "/cambiar-password") {
     return NextResponse.redirect(new URL("/cambiar-password", req.url));
   }
-  if (session.tipoUsuario === "enfoque" && pathname !== "/enfoque") {
+  if (
+    session.tipoUsuario === "enfoque" &&
+    !session.mustChangePassword &&
+    pathname !== "/enfoque" &&
+    pathname !== "/cambiar-password"
+  ) {
     return NextResponse.redirect(new URL("/enfoque", req.url));
   }
   // Raíz, o entrada /{su-propio-slug} estando logueado → su dashboard
