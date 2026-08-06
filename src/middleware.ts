@@ -87,9 +87,11 @@ export default async function middleware(req: NextRequest) {
   // Passthrough técnico (APIs)
   if (pathname.startsWith("/api")) return setCspHeaders(NextResponse.next(), null);
 
-  // ── Host ADMIN oculto: SOLO panel /super ──────────────────────────────────
+  // ── Host ADMIN oculto: panel /super + login del platform admin ────────────
   if (adminHost && host === adminHost) {
     if (pathname.startsWith("/super")) return setCspHeaders(NextResponse.next(), null);
+    // /login es necesario para que el super admin se autentique (evita loop /super↔/login)
+    if (pathname === "/login") return setCspHeaders(NextResponse.next(), null);
     return NextResponse.redirect(new URL("/super", req.url));
   }
 
