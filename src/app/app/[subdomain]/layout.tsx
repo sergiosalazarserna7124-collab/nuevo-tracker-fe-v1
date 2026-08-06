@@ -117,6 +117,21 @@ function AccountSwitcher({ currentSubdominio }: { currentSubdominio: string }) {
 
 export type NavKey = "dashboard" | "performance" | "asesor" | "comisiones" | "bandeja" | "adquisicion" | "comparaciones" | "sistema" | "documentacion" | "configuracion" | "reportes" | "sesiones" | "tablero-enfoque" | "asignacion" | "accesos" | "leads";
 
+/**
+ * Paneles deshabilitados globalmente para TODOS los clientes.
+ * No se muestran en el nav y su ruta directa redirige a /dashboard.
+ * El código de cada página queda intacto — para reactivar uno, quítalo de este set.
+ */
+const GLOBALLY_DISABLED_NAV: NavKey[] = [
+  "leads",           // Recorrido de leads
+  "asesor",          // Panel asesor
+  "comisiones",      // Comisiones
+  "bandeja",         // Bandeja (eventos huérfanos — la ingesta por webhook NO se afecta)
+  "sesiones",        // Sesiones de enfoque
+  "tablero-enfoque", // Tablero de operación
+  "asignacion",      // Asignación de leads
+];
+
 const NAV_KEY_TO_PATH: Record<NavKey, string> = {
   dashboard: "/dashboard",
   leads: "/leads",
@@ -261,6 +276,7 @@ function NavFiltered({
   const navFiltered = useMemo(() => {
     if (sessionLoading) return NAV_ITEMS;
     return NAV_ITEMS.filter((item) => {
+      if (GLOBALLY_DISABLED_NAV.includes(item.navKey)) return false;
       if (seccionesOcultas.includes(item.navKey)) return false;
       return puedeVerRuta(permisos, item.path) || session?.rol === "superadmin";
     });
@@ -339,6 +355,15 @@ function PermissionGuard({ children, seccionesOcultas = [] }: { children: React.
   useEffect(() => {
     if (sessionLoading || !session) return;
     const path = pathname.replace(/^\/app\/[^/]+/, "") || "/dashboard";
+
+    // Paneles deshabilitados globalmente: bloquear también el acceso directo por URL.
+    const globallyDisabledPaths = GLOBALLY_DISABLED_NAV
+      .map((k) => NAV_KEY_TO_PATH[k])
+      .filter(Boolean);
+    if (globallyDisabledPaths.some((hp) => path === hp || path.startsWith(hp + "/"))) {
+      router.replace("/dashboard");
+      return;
+    }
 
     if (seccionesOcultas.length > 0) {
       const hiddenPaths = seccionesOcultas
