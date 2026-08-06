@@ -274,9 +274,11 @@ function NavFiltered({
   const t = useT();
   const permisos = session?.permisosArray ?? [];
   const navFiltered = useMemo(() => {
-    if (sessionLoading) return NAV_ITEMS;
-    return NAV_ITEMS.filter((item) => {
-      if (GLOBALLY_DISABLED_NAV.includes(item.navKey)) return false;
+    // Los paneles deshabilitados globalmente NUNCA se muestran, ni siquiera
+    // mientras carga la sesión (evita el parpadeo donde aparecían un instante).
+    const base = NAV_ITEMS.filter((item) => !GLOBALLY_DISABLED_NAV.includes(item.navKey));
+    if (sessionLoading) return base;
+    return base.filter((item) => {
       if (seccionesOcultas.includes(item.navKey)) return false;
       return puedeVerRuta(permisos, item.path) || session?.rol === "superadmin";
     });
@@ -352,18 +354,22 @@ function PermissionGuard({ children, seccionesOcultas = [] }: { children: React.
   const router = useRouter();
   const { session, sessionLoading } = useUserFilter();
 
-  useEffect(() => {
-    if (sessionLoading || !session) return;
-    const path = pathname.replace(/^\/app\/[^/]+/, "") || "/dashboard";
+  const path = pathname.replace(/^\/app\/[^/]+/, "") || "/dashboard";
 
-    // Paneles deshabilitados globalmente: bloquear también el acceso directo por URL.
-    const globallyDisabledPaths = GLOBALLY_DISABLED_NAV
-      .map((k) => NAV_KEY_TO_PATH[k])
-      .filter(Boolean);
-    if (globallyDisabledPaths.some((hp) => path === hp || path.startsWith(hp + "/"))) {
+  // Paneles deshabilitados globalmente: se evalúa SIN esperar la sesión, para
+  // no renderizar la página ni por un instante (evita el flash del panel viejo).
+  const isGloballyDisabled = GLOBALLY_DISABLED_NAV.some((k) => {
+    const hp = NAV_KEY_TO_PATH[k];
+    return hp && (path === hp || path.startsWith(hp + "/"));
+  });
+
+  useEffect(() => {
+    // Bloquear acceso directo por URL a un panel deshabilitado (no depende de sesión).
+    if (isGloballyDisabled) {
       router.replace("/dashboard");
       return;
     }
+    if (sessionLoading || !session) return;
 
     if (seccionesOcultas.length > 0) {
       const hiddenPaths = seccionesOcultas
@@ -378,7 +384,10 @@ function PermissionGuard({ children, seccionesOcultas = [] }: { children: React.
     if (!perm) return;
     const puede = session.rol === "superadmin" || puedeVerRuta(session.permisosArray ?? [], basePath!);
     if (!puede) router.replace("/dashboard");
-  }, [pathname, session, sessionLoading, router, seccionesOcultas]);
+  }, [path, isGloballyDisabled, session, sessionLoading, router, seccionesOcultas]);
+
+  // No renderizar la página de un panel deshabilitado mientras se redirige.
+  if (isGloballyDisabled) return null;
 
   return <>{children}</>;
 }
