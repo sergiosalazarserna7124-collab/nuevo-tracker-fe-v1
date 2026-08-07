@@ -98,6 +98,10 @@ async function getLeadsLlamada(
     .where(
       and(
         eq(registrosDeLlamada.id_cuenta, idCuentaStr),
+        // Excluir leads descartados (etiqueta no_trackearlead / descartado manual).
+        // IS NOT TRUE incluye false y null (leads no descartados). Columna no
+        // declarada en el schema drizzle → referencia SQL cruda.
+        sql`registros_de_llamada.excluido_metricas IS NOT TRUE`,
         isNull(registrosDeLlamada.fecha_primera_llamada),
         eq(registrosDeLlamada.estado, "pdte"),
         lt(registrosDeLlamada.fecha_evento, umbralTs),

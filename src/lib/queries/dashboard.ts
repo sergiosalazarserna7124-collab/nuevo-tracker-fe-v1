@@ -271,6 +271,7 @@ export async function getDashboard(
         FROM registros_de_llamada
         WHERE id_cuenta = ${String(idCuenta)}
           AND estado = 'pdte'
+          AND excluido_metricas IS NOT TRUE
           AND fecha_evento >= ${fromDate}
           AND fecha_evento <= ${toDate}`,
   ).then((r) => Number((r.rows[0] as { total?: number })?.total ?? 0));
