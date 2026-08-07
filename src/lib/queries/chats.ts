@@ -16,6 +16,19 @@ function extractAgentName(messages: ChatMessage[]): string | null {
   return agent?.name ?? null;
 }
 
+/** Un nombre "genérico" (Cliente, vacío, ".") no sirve → preferir el real. */
+function esNombreGenerico(n: string | null | undefined): boolean {
+  const t = (n ?? "").trim().toLowerCase();
+  return t === "" || t === "cliente" || t === ".";
+}
+
+/** Nombre del lead: el del chat si es real; si es genérico, el de registros. */
+function pickLeadName(chatName: string | null, regName: string | null): string | null {
+  if (!esNombreGenerico(chatName)) return chatName;
+  if (!esNombreGenerico(regName)) return regName;
+  return chatName ?? regName ?? null;
+}
+
 /**
  * Calcula cuántos minutos han pasado desde el último mensaje del lead
  * sin que el agente haya respondido después de ese mensaje.
@@ -149,6 +162,15 @@ export async function getChats(
             AND ${registrosDeLlamada.id_cuenta} = ${chatsLogs.id_cuenta}
           LIMIT 1
         )`,
+        // Nombre real del lead desde registros_de_llamada (fallback cuando el
+        // chat quedó con "Cliente" porque el webhook de chat no trae el nombre).
+        nombreReg: sql<string | null>`(
+          SELECT ${registrosDeLlamada.nombre_lead}
+          FROM ${registrosDeLlamada}
+          WHERE ${registrosDeLlamada.ghl_contact_id} = ${chatsLogs.id_lead}
+            AND ${registrosDeLlamada.id_cuenta} = ${chatsLogs.id_cuenta}
+          LIMIT 1
+        )`,
       })
       .from(chatsLogs)
       .where(
@@ -187,7 +209,7 @@ export async function getChats(
 
     return {
       id: r.id_evento,
-      leadName: r.nombre_lead,
+      leadName: pickLeadName(r.nombre_lead, (r as { nombreReg?: string | null }).nombreReg ?? null),
       leadId: r.id_lead,
       leadPhone: r.leadPhone ?? null,
       leadEmail: r.leadEmail ?? null,
