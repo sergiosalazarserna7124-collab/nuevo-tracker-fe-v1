@@ -619,8 +619,11 @@ export async function getDashboard(
       const creado = new Date(r.fecha_evento);
       if (call.getTime() > creado.getTime()) generalMins.push((call.getTime() - creado.getTime()) / 60000);
     }
-    if (r.fecha_asignacion) {
-      const asig = new Date(r.fecha_asignacion);
+    // Asesor: usa fecha_asignacion; si no existe (lead sin reasignación
+    // registrada), cae a fecha_evento (asumiendo asignado al crearse).
+    const asigRaw = r.fecha_asignacion ?? r.fecha_evento;
+    if (asigRaw) {
+      const asig = new Date(asigRaw);
       if (call.getTime() > asig.getTime()) asesorMins.push(businessMinutesBetween(asig, call, horarioLaboral, tzCuenta));
     }
   }
