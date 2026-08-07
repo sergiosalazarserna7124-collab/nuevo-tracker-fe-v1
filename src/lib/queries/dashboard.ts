@@ -555,6 +555,48 @@ export async function getDashboard(
   // Garantiza la invariante: agendadas = asistidas + canceladas + noShows + cerradas + pendientes
   kpis.pendientesAgendas = Math.max(0, kpis.agendadas - kpis.asistidas - kpis.canceladas - kpis.noShows - kpis.meetingsClosed);
 
+  // ── Leads reactivados + Oportunidades creadas ──────────────────────────────
+  // IMPORTANTE: se calcula ANTES del loop de métricas (que lee `kpis`).
+  // Reactivado = lead con actividad (llamada/chat/cita) en el período que NO fue
+  // creado en el período. Dedup por ghl_contact_id. Excluye descartados.
+  const descartadoContactIds = new Set<string>(
+    (await db.execute(sql`
+      SELECT DISTINCT ghl_contact_id FROM registros_de_llamada
+      WHERE id_cuenta = ${idCuenta} AND calificacion_manual = 'descartado' AND ghl_contact_id IS NOT NULL
+    `)).rows.map((r) => String((r as { ghl_contact_id: string }).ghl_contact_id)),
+  );
+  const chatLeadIds = (await db.execute(sql`
+    SELECT DISTINCT id_lead FROM chats_logs
+    WHERE id_cuenta = ${idCuenta} AND id_lead IS NOT NULL AND excluida_dashboard IS NOT TRUE
+      AND COALESCE(primer_msg_at, primer_msg_lead_at, fecha_y_hora_z) >= ${fromDate}
+      AND COALESCE(primer_msg_at, primer_msg_lead_at, fecha_y_hora_z) <= ${toDate}
+  `)).rows.map((r) => String((r as { id_lead: string }).id_lead));
+  const creadosContactIds = new Set<string>(
+    filteredNewLeadEvents.map((nl) => nl.contact_id_ghl?.trim()).filter((x): x is string => !!x),
+  );
+  const activosContactIds = new Set<string>();
+  for (const c of filteredCalls) if (c.contact_id_ghl?.trim()) activosContactIds.add(c.contact_id_ghl.trim());
+  for (const a of filteredAgendas) if (a.ghl_contact_id?.trim()) activosContactIds.add(a.ghl_contact_id.trim());
+  for (const cid of chatLeadIds) if (cid?.trim()) activosContactIds.add(cid.trim());
+  let leadsReactivados = 0;
+  for (const cid of activosContactIds) {
+    if (!creadosContactIds.has(cid) && !descartadoContactIds.has(cid)) leadsReactivados++;
+  }
+  kpis.leadsReactivados = leadsReactivados;
+
+  const oppRes = await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM oportunidades o
+    WHERE o.id_cuenta = ${idCuenta}
+      AND o.fecha_creada >= ${fromDate} AND o.fecha_creada <= ${toDate}
+      AND COALESCE(o.status, '') <> 'deleted'
+      AND NOT EXISTS (
+        SELECT 1 FROM registros_de_llamada r
+        WHERE r.id_cuenta = ${idCuenta} AND r.ghl_contact_id = o.ghl_contact_id
+          AND r.calificacion_manual = 'descartado'
+      )
+  `);
+  kpis.oportunidadesCreadas = Number((oppRes.rows[0] as { n?: number })?.n ?? 0);
+
   // Advisor ranking
   // Cargar mapa nombre_closer → email desde usuarios_dashboard para normalizar
   // closers que llegan como texto (ej: "Miguel Puga" → "miguel@serenthys.com")
@@ -1185,44 +1227,6 @@ export async function getDashboard(
     })
     .from(chatsLogs)
     .where(and(...chatConditions));
-
-  // ── Leads reactivados + Oportunidades creadas (dedup por ghl_contact_id) ──
-  // Reactivado = lead con actividad (llamada/chat/cita) en el período que NO
-  // fue creado en el período. Se excluyen los descartados.
-  const descartadoContactIds = new Set<string>(
-    (await db.execute(sql`
-      SELECT DISTINCT ghl_contact_id FROM registros_de_llamada
-      WHERE id_cuenta = ${idCuenta} AND calificacion_manual = 'descartado'
-        AND ghl_contact_id IS NOT NULL
-    `)).rows.map((r) => String((r as { ghl_contact_id: string }).ghl_contact_id)),
-  );
-  const creadosContactIds = new Set<string>(
-    filteredNewLeadEvents.map((nl) => nl.contact_id_ghl?.trim()).filter((x): x is string => !!x),
-  );
-  const activosContactIds = new Set<string>();
-  for (const c of filteredCalls) if (c.contact_id_ghl?.trim()) activosContactIds.add(c.contact_id_ghl.trim());
-  for (const a of filteredAgendas) if (a.ghl_contact_id?.trim()) activosContactIds.add(a.ghl_contact_id.trim());
-  for (const ch of chatRows) if (ch.id_lead?.trim()) activosContactIds.add(ch.id_lead.trim());
-  let leadsReactivados = 0;
-  for (const cid of activosContactIds) {
-    if (!creadosContactIds.has(cid) && !descartadoContactIds.has(cid)) leadsReactivados++;
-  }
-  kpis.leadsReactivados = leadsReactivados;
-
-  // Oportunidades creadas en el período (excluye contactos descartados).
-  const oppRes = await db.execute(sql`
-    SELECT COUNT(*)::int AS n FROM oportunidades o
-    WHERE o.id_cuenta = ${idCuenta}
-      AND o.fecha_creada >= ${fromDate} AND o.fecha_creada <= ${toDate}
-      AND COALESCE(o.status, '') <> 'deleted'
-      AND NOT EXISTS (
-        SELECT 1 FROM registros_de_llamada r
-        WHERE r.id_cuenta = ${idCuenta}
-          AND r.ghl_contact_id = o.ghl_contact_id
-          AND r.calificacion_manual = 'descartado'
-      )
-  `);
-  kpis.oportunidadesCreadas = Number((oppRes.rows[0] as { n?: number })?.n ?? 0);
 
   // ----------------------------------------------------------------
   // Objeciones — fase 2: chats
