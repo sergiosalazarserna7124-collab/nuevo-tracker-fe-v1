@@ -593,7 +593,7 @@ export async function getDashboard(
       AND NOT EXISTS (
         SELECT 1 FROM registros_de_llamada r
         WHERE r.id_cuenta = ${idCuenta} AND r.ghl_contact_id = o.ghl_contact_id
-          AND r.calificacion_manual = 'descartado'
+          AND (r.calificacion_manual = 'descartado' OR r.excluido_metricas = true)
       )
   `);
   kpis.oportunidadesCreadas = Number((oppRes.rows[0] as { n?: number })?.n ?? 0);
