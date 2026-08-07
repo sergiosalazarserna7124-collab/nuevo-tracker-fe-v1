@@ -598,27 +598,36 @@ export async function getDashboard(
   `);
   kpis.oportunidadesCreadas = Number((oppRes.rows[0] as { n?: number })?.n ?? 0);
 
-  // Speed to lead ASESOR: minutos EN HORARIO LABORAL desde fecha_asignacion hasta
-  // la primera llamada. Horario configurable por cuenta (default Lun-Vie 8-18).
+  // Speed to lead (ambos) desde registros_de_llamada:
+  //  - GENERAL  = minutos desde fecha_evento (creación) hasta fecha_primera_llamada
+  //               (INICIO de la 1ra llamada, NO el fin). Sin horario ni zona.
+  //  - ASESOR   = minutos EN HORARIO LABORAL desde fecha_asignacion hasta la 1ra llamada.
+  // (Se calcula acá porque el marketplace no setea log_llamadas.speed_to_lead.)
   const horarioLaboral = cuentaRow?.configuracion_ui?.horario_laboral ?? HORARIO_LABORAL_DEFAULT;
   const tzCuenta = cuentaRow?.zona_horaria_iana ?? null;
-  const asesorRows = (await db.execute(sql`
-    SELECT fecha_asignacion, fecha_primera_llamada FROM registros_de_llamada
+  const speedRows = (await db.execute(sql`
+    SELECT fecha_evento, fecha_asignacion, fecha_primera_llamada FROM registros_de_llamada
     WHERE id_cuenta = ${idCuenta}
-      AND fecha_asignacion IS NOT NULL AND fecha_primera_llamada IS NOT NULL
+      AND fecha_primera_llamada IS NOT NULL
       AND fecha_primera_llamada >= ${fromDate} AND fecha_primera_llamada <= ${toDate}
-  `)).rows as Array<{ fecha_asignacion: string | Date; fecha_primera_llamada: string | Date }>;
+  `)).rows as Array<{ fecha_evento: string | Date | null; fecha_asignacion: string | Date | null; fecha_primera_llamada: string | Date }>;
+  const generalMins: number[] = [];
   const asesorMins: number[] = [];
-  for (const r of asesorRows) {
-    const asig = new Date(r.fecha_asignacion);
+  for (const r of speedRows) {
     const call = new Date(r.fecha_primera_llamada);
-    if (call.getTime() > asig.getTime()) {
-      asesorMins.push(businessMinutesBetween(asig, call, horarioLaboral, tzCuenta));
+    if (r.fecha_evento) {
+      const creado = new Date(r.fecha_evento);
+      if (call.getTime() > creado.getTime()) generalMins.push((call.getTime() - creado.getTime()) / 60000);
+    }
+    if (r.fecha_asignacion) {
+      const asig = new Date(r.fecha_asignacion);
+      if (call.getTime() > asig.getTime()) asesorMins.push(businessMinutesBetween(asig, call, horarioLaboral, tzCuenta));
     }
   }
+  kpis.speedToLeadAvg = generalMins.length > 0
+    ? generalMins.reduce((s, v) => s + v, 0) / generalMins.length : 0;
   kpis.speedToLeadAsesor = asesorMins.length > 0
-    ? asesorMins.reduce((s, v) => s + v, 0) / asesorMins.length
-    : 0;
+    ? asesorMins.reduce((s, v) => s + v, 0) / asesorMins.length : 0;
 
   // Advisor ranking
   // Cargar mapa nombre_closer → email desde usuarios_dashboard para normalizar
