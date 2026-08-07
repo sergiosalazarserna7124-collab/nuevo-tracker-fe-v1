@@ -128,13 +128,15 @@ export async function getVideollamadas(
       eq(resumenesDiariosAgendas.categoria, 'PDTE'),
       isNotNull(resumenesDiariosAgendas.fecha_reunion),
       gt(resumenesDiariosAgendas.fecha_reunion, sql`NOW()`),
-      gte(resumenesDiariosAgendas.fecha, dateFrom),
-      lte(resumenesDiariosAgendas.fecha, dateTo),
+      // Usar el rango zonificado (fin de día), no las fechas crudas (medianoche):
+      // si no, una cita agendada por la tarde del último día del rango queda excluida.
+      gte(resumenesDiariosAgendas.fecha, fromDate.toISOString()),
+      lte(resumenesDiariosAgendas.fecha, toDate.toISOString()),
     ),
     and(
       isNull(resumenesDiariosAgendas.fecha_reunion),
-      gte(resumenesDiariosAgendas.fecha, dateFrom),
-      lte(resumenesDiariosAgendas.fecha, dateTo),
+      gte(resumenesDiariosAgendas.fecha, fromDate.toISOString()),
+      lte(resumenesDiariosAgendas.fecha, toDate.toISOString()),
     ),
   ) ?? sql`TRUE`;
   // AUT-632: exclude phone calls injected into agendas by the telephony pipeline
