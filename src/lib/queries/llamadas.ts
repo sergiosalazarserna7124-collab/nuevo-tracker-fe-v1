@@ -98,6 +98,8 @@ export async function getLlamadas(
 
   const baseReg = [
     eq(registrosDeLlamada.id_cuenta, idCuentaStr),
+    // Excluir leads descartados (etiqueta no_trackearlead / descarte manual).
+    sql`registros_de_llamada.excluido_metricas IS NOT TRUE`,
   ];
 
   const regRows =
@@ -523,6 +525,7 @@ export async function getLlamadas(
   // filtramos arriba), por lo que necesitan su propia consulta.
   const pendingConditions: Parameters<typeof and>[0][] = [
     eq(registrosDeLlamada.id_cuenta, idCuentaStr),
+    sql`registros_de_llamada.excluido_metricas IS NOT TRUE`,
     sql`UPPER(TRIM(${registrosDeLlamada.estado})) = 'PDTE'`,
     gte(registrosDeLlamada.fecha_evento, fromTs),
     lte(registrosDeLlamada.fecha_evento, toTs),
