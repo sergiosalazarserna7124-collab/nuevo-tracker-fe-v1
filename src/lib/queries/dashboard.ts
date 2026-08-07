@@ -282,6 +282,8 @@ export async function getDashboard(
   // Leads descartados: marcados como 'descartado' (etiqueta descartar-lead o
   // descarte manual). A diferencia del resto de KPIs, aquí SÍ queremos los
   // excluido_metricas=true — el descarte es justo lo que cuenta esta métrica.
+  // NO incluye 'no_trackeado' (etiqueta no_trackearlead): esos nunca fueron
+  // leads y no cuentan en ninguna métrica, tampoco en esta.
   // Se cuenta lead único (ghl_contact_id) para no inflar con re-registros.
   const descartadosPromise = db.execute(
     sql`SELECT COUNT(DISTINCT COALESCE(ghl_contact_id, id_registro::text))::int AS total
@@ -292,10 +294,21 @@ export async function getDashboard(
           AND fecha_evento <= ${toDate}`,
   ).then((r) => Number((r.rows[0] as { total?: number })?.total ?? 0));
 
+  // Contactos 'no_trackeado' (etiqueta no_trackearlead): nunca fueron leads
+  // (amigo del cliente, consulta random) → se excluyen de TODO el dashboard.
+  // log_llamadas no tiene bandera de exclusión propia, así que se resuelve el
+  // set de contactos desde registros_de_llamada y se filtra en memoria.
+  const noTrackeadosPromise = db.execute(
+    sql`SELECT DISTINCT ghl_contact_id FROM registros_de_llamada
+        WHERE id_cuenta = ${String(idCuenta)}
+          AND calificacion_manual = 'no_trackeado'
+          AND ghl_contact_id IS NOT NULL`,
+  ).then((r) => new Set(r.rows.map((x) => String((x as { ghl_contact_id: string }).ghl_contact_id))));
+
   // Mostrar agendas si hay datos, independientemente de si Fathom está configurado.
   // Las agendas pueden provenir de GHL webhooks, Twilio, u otras fuentes (no solo Fathom).
 
-  const [agendas, calls, newLeadEvents, adsAggRowEarly, pendientesLlamadas, leadsDescartados] = await Promise.all([
+  const [agendas, calls, newLeadEvents, adsAggRowEarly, pendientesLlamadas, leadsDescartados, noTrackeadoContactIds] = await Promise.all([
     db
       .select()
       .from(resumenesDiariosAgendas)
@@ -320,6 +333,7 @@ export async function getDashboard(
     adsAggPromise,
     pendientesPromise,
     descartadosPromise,
+    noTrackeadosPromise,
   ]);
 
   // Parse ads fields for use in metricas tipo="ads" and adsSummary widget
@@ -359,9 +373,14 @@ export async function getDashboard(
     ...adsCamposExtra, // frequency, unique_ctr etc. (rendered as numbers, not pctFmt)
   };
 
+  // Sacar contactos no-trackeados de llamadas y eventos de lead nuevo — nunca
+  // fueron leads, no deben contar ni en "leads generados" ni en llamadas.
+  // (Las agendas y chats ya vienen filtrados por excluida_dashboard en su query.)
+  const esNoTrackeado = (contactId: string | null | undefined) =>
+    !!contactId && noTrackeadoContactIds.has(contactId.trim());
   let filteredAgendas = agendas;
-  let filteredCalls = calls;
-  let filteredNewLeadEvents = newLeadEvents;
+  let filteredCalls = calls.filter((c) => !esNoTrackeado(c.contact_id_ghl));
+  let filteredNewLeadEvents = newLeadEvents.filter((nl) => !esNoTrackeado(nl.contact_id_ghl));
   if (filterTags && filterTags.length > 0) {
     const tagSet = new Set(filterTags);
     // Tags son propiedades de LLAMADAS — solo filtramos llamadas.
@@ -370,7 +389,7 @@ export async function getDashboard(
     // 2. Filtrar agendas por tags de llamadas causa que "Agendadas" muestre números
     //    distintos en el panel ejecutivo vs panel de rendimiento para el mismo rango,
     //    creando confusión (el mismo dato "agendas" debería ser siempre el mismo número).
-    filteredCalls = calls.filter((c) => Array.isArray(c.tags_internos) && c.tags_internos.some((t) => tagSet.has(t)));
+    filteredCalls = filteredCalls.filter((c) => Array.isArray(c.tags_internos) && c.tags_internos.some((t) => tagSet.has(t)));
     // newLeadEvents no tiene tags_internos en la query selectiva — no filtrar por tags
   }
 
@@ -563,7 +582,7 @@ export async function getDashboard(
   const descartadoContactIds = new Set<string>(
     (await db.execute(sql`
       SELECT DISTINCT ghl_contact_id FROM registros_de_llamada
-      WHERE id_cuenta = ${idCuenta} AND calificacion_manual = 'descartado' AND ghl_contact_id IS NOT NULL
+      WHERE id_cuenta = ${idCuenta} AND calificacion_manual IN ('descartado', 'no_trackeado') AND ghl_contact_id IS NOT NULL
     `)).rows.map((r) => String((r as { ghl_contact_id: string }).ghl_contact_id)),
   );
   const chatLeadIds = (await db.execute(sql`

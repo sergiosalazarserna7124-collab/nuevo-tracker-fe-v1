@@ -72,7 +72,7 @@ export async function computeStandardMetrics(
     ),
   )!;
 
-  const [agendas, calls, newLeadEvents, reactivadosResult] = await Promise.all([
+  const [agendas, callsRaw, newLeadEventsRaw, reactivadosResult, noTrackeadoContactIds] = await Promise.all([
     db
       .select()
       .from(resumenesDiariosAgendas)
@@ -96,6 +96,7 @@ export async function computeStandardMetrics(
         id: logLlamadas.id,
         mail_lead: logLlamadas.mail_lead,
         phone: logLlamadas.phone,
+        contact_id_ghl: logLlamadas.contact_id_ghl,
       })
       .from(logLlamadas)
       .where(
@@ -118,13 +119,30 @@ export async function computeStandardMetrics(
         FROM registros_de_llamada
         WHERE id_cuenta::text = ${String(idCuenta)}
           AND fecha_evento BETWEEN ${fromDate} AND ${toDate}
+          AND calificacion_manual IS DISTINCT FROM 'no_trackeado'
       `,
       )
       .then((r) => ({
         nuevos: Number((r.rows[0] as { nuevos?: string })?.nuevos ?? 0),
         reactivados: Number((r.rows[0] as { reactivados?: string })?.reactivados ?? 0),
       })),
+    // Contactos 'no_trackeado' (etiqueta no_trackearlead): nunca fueron leads →
+    // fuera de todas las métricas. log_llamadas no tiene bandera propia; se
+    // resuelve el set desde registros_de_llamada y se filtra en memoria.
+    db
+      .execute(
+        sql`SELECT DISTINCT ghl_contact_id FROM registros_de_llamada
+            WHERE id_cuenta::text = ${String(idCuenta)}
+              AND calificacion_manual = 'no_trackeado'
+              AND ghl_contact_id IS NOT NULL`,
+      )
+      .then((r) => new Set(r.rows.map((x) => String((x as { ghl_contact_id: string }).ghl_contact_id)))),
   ]);
+
+  const esNoTrackeado = (contactId: string | null | undefined) =>
+    !!contactId && noTrackeadoContactIds.has(contactId.trim());
+  const calls = callsRaw.filter((c) => !esNoTrackeado(c.contact_id_ghl));
+  const newLeadEvents = newLeadEventsRaw.filter((nl) => !esNoTrackeado(nl.contact_id_ghl));
 
   const effectiveCallLeadKeys = new Set<string>();
   for (const c of calls) {
