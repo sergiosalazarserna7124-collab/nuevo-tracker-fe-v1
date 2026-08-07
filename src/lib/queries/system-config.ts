@@ -3,6 +3,7 @@ import { cuentas, metasCuenta, normalizeEmbudoEtapas } from "@/lib/db/schema";
 import type { ReglaEtiqueta, MetricaPersonalizada, ChatTrigger, EmbudoEtapa, TipoEventoConfig, RolConfig, MetricaConfig, MetricaManualEntry, ConfiguracionAds, DashboardPersonalizado, CategoriaLlamada, ExclusionesCoach } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { parseMetricasConfig } from "@/lib/metricas-engine";
+import { HORARIO_LABORAL_DEFAULT, type HorarioLaboral } from "@/lib/business-hours";
 
 export interface ChatConfigData {
   tiene_chatbot: boolean;
@@ -51,6 +52,8 @@ export interface SystemConfigData {
   cerradas_cuentan_como_calificadas?: boolean;
   categorias_llamadas: CategoriaLlamada[];
   exclusiones_coach: ExclusionesCoach | null;
+  /** Horario laboral para el "speed to lead asesor". */
+  horario_laboral: HorarioLaboral;
 }
 
 export interface SystemConfigUpdatePayload extends Partial<Omit<SystemConfigData, "has_openai_key" | "has_gemini_key" | "gemini_premium_status" | "fuente_llamadas">> {
@@ -148,6 +151,7 @@ export async function getSystemConfig(idCuenta: number): Promise<SystemConfigDat
       cerradas_cuentan_como_calificadas: true,
       categorias_llamadas: [],
       exclusiones_coach: null,
+      horario_laboral: HORARIO_LABORAL_DEFAULT,
     };
   }
 
@@ -188,6 +192,7 @@ export async function getSystemConfig(idCuenta: number): Promise<SystemConfigDat
     cerradas_cuentan_como_calificadas: r.configuracion_ui?.cerradas_cuentan_como_calificadas ?? true,
     categorias_llamadas: Array.isArray(r.categorias_llamadas) ? r.categorias_llamadas : [],
     exclusiones_coach: (r.exclusiones_coach && typeof r.exclusiones_coach === "object") ? r.exclusiones_coach as ExclusionesCoach : null,
+    horario_laboral: r.configuracion_ui?.horario_laboral ?? HORARIO_LABORAL_DEFAULT,
   };
 }
 
@@ -288,7 +293,8 @@ export async function updateSystemConfig(
     (data as Record<string, unknown>).ghl_notas_llamadas !== undefined ||
     (data as Record<string, unknown>).ghl_campos !== undefined ||
     (data as Record<string, unknown>).ghl_campos_llamadas !== undefined ||
-    (data as Record<string, unknown>).cerradas_cuentan_como_calificadas !== undefined
+    (data as Record<string, unknown>).cerradas_cuentan_como_calificadas !== undefined ||
+    data.horario_laboral !== undefined
   ) {
     const [row] = await db
       .select({ configuracion_ui: cuentas.configuracion_ui })
@@ -331,6 +337,9 @@ export async function updateSystemConfig(
     }
     if ((data as Record<string, unknown>).ghl_campos_llamadas !== undefined) {
       updatedUi.ghl_campos_llamadas = (data as Record<string, unknown>).ghl_campos_llamadas as { ia?: string; transcripcion?: string };
+    }
+    if (data.horario_laboral !== undefined) {
+      updatedUi.horario_laboral = data.horario_laboral;
     }
     if ((data as Record<string, unknown>).cerradas_cuentan_como_calificadas !== undefined) {
       updatedUi.cerradas_cuentan_como_calificadas = (data as Record<string, unknown>).cerradas_cuentan_como_calificadas as boolean;

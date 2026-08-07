@@ -25,6 +25,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { getMetricasQueDependenDe, DEFAULT_METRICAS_CONFIG, DEFAULT_EMBUDO_CONFIG } from '@/lib/metricas-engine';
+import { HORARIO_LABORAL_DEFAULT, type HorarioLaboral } from '@/lib/business-hours';
 import MetricaEditSheet from '@/components/dashboard/MetricaEditSheet';
 import DashboardsManager from '@/components/dashboard/DashboardsManager';
 import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
@@ -168,6 +169,7 @@ interface SystemConfig {
   has_openai_key: boolean; has_gemini_key: boolean; gemini_premium_status: 'active' | 'paused_invalid_key' | 'paused_quota_exceeded' | null; fuente_datos_financieros: 'nativa' | 'api_externa';
   seccion_chats_dashboard?: boolean;
   chat_config?: ChatConfig;
+  horario_laboral?: HorarioLaboral;
   chat_analisis_hora?: number;
   roles_config?: RolConfigLocal[];
   idioma?: 'es' | 'en';
@@ -300,6 +302,7 @@ export default function SystemPage() {
     emoji_toma_atencion: '',
   });
   const [chatAnalisisHora, setChatAnalisisHora] = useState<number>(2);
+  const [horarioLaboral, setHorarioLaboral] = useState<HorarioLaboral>(HORARIO_LABORAL_DEFAULT);
   const [ghlNotasIa, setGhlNotasIa] = useState<boolean>(true);
   const [ghlNotasTranscripcion, setGhlNotasTranscripcion] = useState<boolean>(false);
   // Notas GHL para LLAMADAS telefónicas (independiente de videollamadas)
@@ -458,6 +461,9 @@ export default function SystemPage() {
         setFuenteLlamadas((cfg as unknown as { fuente_llamadas?: string }).fuente_llamadas === 'ghl' ? 'ghl' : 'twilio');
         setCategoriasLlamadas(Array.isArray(cfg.categorias_llamadas) ? cfg.categorias_llamadas : []);
         setGhlLocationId((cfg as unknown as { ghl_location_id?: string }).ghl_location_id ?? '');
+        if (cfg.horario_laboral && Array.isArray(cfg.horario_laboral.dias)) {
+          setHorarioLaboral(cfg.horario_laboral);
+        }
         if (cfg.chat_config) {
           setChatConfig({
             tiene_chatbot: cfg.chat_config.tiene_chatbot ?? false,
@@ -636,6 +642,7 @@ export default function SystemPage() {
         categorias_llamadas: categoriasLlamadas,
         secciones_ocultas: seccionesOcultas,
         ranking_metrica_base: rankingMetricaBase,
+        horario_laboral: horarioLaboral,
       };
       if (geminiKey) payload.gemini_api_key = geminiKey;
       const res = await fetch('/api/data/system-config', {
@@ -1282,6 +1289,38 @@ export default function SystemPage() {
                     <Plus className="w-4 h-4" /> Añadir categoría
                   </button>
                 ) : null}
+              </div>
+
+              {/* Horario laboral — base del "Speed to lead asesor" */}
+              <div className="pt-4 mt-2 border-t border-surface-500 space-y-3">
+                <div>
+                  <h3 className="text-base font-semibold text-white">Horario laboral</h3>
+                  <p className="text-xs text-gray-400">Se usa para el <strong>Speed to lead asesor</strong>: cuenta solo los minutos dentro de este horario desde que se asigna el lead hasta la primera llamada (en la zona horaria de la cuenta).</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[{ n: 1, l: 'Lun' }, { n: 2, l: 'Mar' }, { n: 3, l: 'Mié' }, { n: 4, l: 'Jue' }, { n: 5, l: 'Vie' }, { n: 6, l: 'Sáb' }, { n: 7, l: 'Dom' }].map((d) => {
+                    const active = horarioLaboral.dias.includes(d.n);
+                    return (
+                      <button key={d.n} type="button"
+                        onClick={() => setHorarioLaboral((h) => ({ ...h, dias: active ? h.dias.filter((x) => x !== d.n) : [...h.dias, d.n].sort((a, b) => a - b) }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${active ? 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/50' : 'bg-surface-700 text-gray-400 border-surface-500 hover:border-surface-400'}`}>
+                        {d.l}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="text-sm text-gray-300 flex items-center gap-2">Desde
+                    <input type="time" value={horarioLaboral.hora_inicio}
+                      onChange={(e) => setHorarioLaboral((h) => ({ ...h, hora_inicio: e.target.value }))}
+                      className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white" />
+                  </label>
+                  <label className="text-sm text-gray-300 flex items-center gap-2">Hasta
+                    <input type="time" value={horarioLaboral.hora_fin}
+                      onChange={(e) => setHorarioLaboral((h) => ({ ...h, hora_fin: e.target.value }))}
+                      className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white" />
+                  </label>
+                </div>
               </div>
             </div>
           )}
