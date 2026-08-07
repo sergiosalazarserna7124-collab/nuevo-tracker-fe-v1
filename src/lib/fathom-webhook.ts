@@ -1,15 +1,21 @@
 /**
  * Registra un webhook en Fathom apuntando al Cerebro: POST /webhooks/fathom/:idCuenta
  */
-import { API_BASE_URL } from "@/lib/api-config";
+import { WEBHOOK_PROXY_URL } from "@/lib/api-config";
 
 export type RegistrarWebhookFathomResult =
   | { ok: true; webhookId: string }
   | { ok: false; error: string };
 
+/**
+ * URL que se registra en Fathom. Usa el proxy público (leadmaster.com.co/
+ * webhooks/proxy/...) en vez del Cerebro directo, para que NO se exponga el
+ * host interno (tracker-v1 / onrender). El proxy reenvía a /webhooks/fathom/:id.
+ * Siempre incluye el id_cuenta para enrutar al tenant correcto.
+ */
 export function getFathomDestinationUrl(idCuenta: number): string {
-  const base = API_BASE_URL.replace(/\/$/, "");
-  return `${base}/webhooks/fathom/${idCuenta}`;
+  const base = WEBHOOK_PROXY_URL.replace(/\/$/, "");
+  return `${base}/fathom/${idCuenta}`;
 }
 
 export async function registrarWebhookFathom(
