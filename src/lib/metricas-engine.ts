@@ -87,7 +87,8 @@ export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   { id: "default-intentos", nombre: "Intentos promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 5, formato: "decimal", color: "amber", formula: { tipo: "directo", fuente: "avgAttempts" }, descripcion: "Llamadas promedio por lead" },
   // --- Bloque 3: Pipeline de citas ---
   { id: "default-agendadas", nombre: "Citas agendadas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 6, formato: "numero", color: "purple", formula: { tipo: "directo", fuente: "meetingsBooked" } },
-  { id: "default-tasa-agendamiento", nombre: "Tasa de agendamiento", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 7, formato: "porcentaje", color: "purple", formula: { tipo: "directo", fuente: "tasaAgendamiento" }, descripcion: "Citas ÷ Leads trabajados" },
+  { id: "default-asistidas", nombre: "Citas asistidas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 7, formato: "numero", color: "green", formula: { tipo: "directo", fuente: "meetingsAttended" }, descripcion: "Leads que asistieron a la cita (con interacción real: grabación/transcript)" },
+  { id: "default-tasa-agendamiento", nombre: "Tasa de agendamiento", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 8, formato: "porcentaje", color: "purple", formula: { tipo: "directo", fuente: "tasaAgendamiento" }, descripcion: "Citas ÷ Leads trabajados" },
   { id: "default-no-shows", nombre: "No shows", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 8, formato: "numero", color: "amber", formula: { tipo: "directo", fuente: "noShows" }, descripcion: "Personas que no se presentaron" },
   { id: "default-canceladas", nombre: "Canceladas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 9, formato: "numero", color: "red", formula: { tipo: "directo", fuente: "meetingsCanceled" }, descripcion: "Citas canceladas por el lead" },
   // --- Bloque 4: Cierre ---
