@@ -276,10 +276,23 @@ export async function getDashboard(
           AND fecha_evento <= ${toDate}`,
   ).then((r) => Number((r.rows[0] as { total?: number })?.total ?? 0));
 
+  // Leads descartados: marcados como 'descartado' (etiqueta descartar-lead o
+  // descarte manual). A diferencia del resto de KPIs, aquí SÍ queremos los
+  // excluido_metricas=true — el descarte es justo lo que cuenta esta métrica.
+  // Se cuenta lead único (ghl_contact_id) para no inflar con re-registros.
+  const descartadosPromise = db.execute(
+    sql`SELECT COUNT(DISTINCT COALESCE(ghl_contact_id, id_registro::text))::int AS total
+        FROM registros_de_llamada
+        WHERE id_cuenta = ${String(idCuenta)}
+          AND calificacion_manual = 'descartado'
+          AND fecha_evento >= ${fromDate}
+          AND fecha_evento <= ${toDate}`,
+  ).then((r) => Number((r.rows[0] as { total?: number })?.total ?? 0));
+
   // Mostrar agendas si hay datos, independientemente de si Fathom está configurado.
   // Las agendas pueden provenir de GHL webhooks, Twilio, u otras fuentes (no solo Fathom).
 
-  const [agendas, calls, newLeadEvents, adsAggRowEarly, pendientesLlamadas] = await Promise.all([
+  const [agendas, calls, newLeadEvents, adsAggRowEarly, pendientesLlamadas, leadsDescartados] = await Promise.all([
     db
       .select()
       .from(resumenesDiariosAgendas)
@@ -302,6 +315,7 @@ export async function getDashboard(
       .where(and(...newLeadConditions)),
     adsAggPromise,
     pendientesPromise,
+    descartadosPromise,
   ]);
 
   // Parse ads fields for use in metricas tipo="ads" and adsSummary widget
@@ -525,6 +539,7 @@ export async function getDashboard(
     ).size,
     ticket: asistidas > 0 ? revenue / asistidas : 0,
     pendientesLlamadas,
+    leadsDescartados,
     callsNuevos,
     callsReactivados,
     contestadasNuevos,

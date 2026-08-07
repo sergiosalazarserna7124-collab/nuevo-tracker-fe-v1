@@ -313,6 +313,19 @@ export const PLANTILLA_METRICAS_BASE: MetricaConfig[] = [
       fuentes: ["base-reuniones-calificadas", "base-reuniones-agendadas"],
     },
   },
+
+  // ─── BLOQUE 6: Calidad de leads ───────────────────────────────────────────
+  {
+    id: "base-leads-descartados",
+    nombre: "Leads descartados",
+    descripcion: "Leads marcados como descartados (etiqueta descartar-lead o descarte manual). No cuentan en las métricas globales, pero quedan visibles como métrica.",
+    tipo: "automatica",
+    paneles: ["panel_ejecutivo"],
+    orden: 22,
+    formato: "numero",
+    color: "red",
+    formula: { tipo: "directo", fuente: "leadsDescartados" },
+  },
 ];
 
 /**

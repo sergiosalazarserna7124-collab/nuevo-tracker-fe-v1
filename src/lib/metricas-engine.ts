@@ -29,6 +29,7 @@ export const KPI_DEFAULT_KEYS = [
   "noShows",
   "ticket",
   "pendientesLlamadas",
+  "leadsDescartados",
   "attemptsToFirstContactAvg",
   "callsNuevos",
   "callsReactivados",
@@ -64,6 +65,7 @@ export const KPI_DEFAULT_LABELS: Record<string, string> = {
   noShows: "No shows",
   ticket: "Ticket (citas)",
   pendientesLlamadas: "Llamadas pendientes",
+  leadsDescartados: "Leads descartados",
   attemptsToFirstContactAvg: "Intentos a primer contacto",
   callsNuevos: "Llamadas a nuevos",
   callsReactivados: "Llamadas a reactivados",
@@ -94,6 +96,8 @@ export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   { id: "default-revenue", nombre: "Ingresos", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "moneda", color: "green", formula: { tipo: "directo", fuente: "revenue" } },
   { id: "default-cash", nombre: "Efectivo cobrado", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 12, formato: "moneda", color: "green", formula: { tipo: "directo", fuente: "cashCollected" } },
   { id: "default-ticket", nombre: "Ticket promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 13, formato: "moneda", color: "blue", formula: { tipo: "directo", fuente: "avgTicket" }, descripcion: "Ingresos ÷ Citas efectivas" },
+  // --- Bloque 6: Calidad de leads ---
+  { id: "default-descartados", nombre: "Leads descartados", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 14, formato: "numero", color: "red", formula: { tipo: "directo", fuente: "leadsDescartados" }, descripcion: "Leads marcados como descartados (etiqueta descartar-lead o descarte manual). No cuentan en las métricas globales, pero quedan visibles aquí." },
 ];
 
 /**
