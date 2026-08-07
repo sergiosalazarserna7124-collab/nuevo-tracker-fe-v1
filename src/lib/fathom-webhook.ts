@@ -1,21 +1,25 @@
 /**
  * Registra un webhook en Fathom apuntando al Cerebro: POST /webhooks/fathom/:idCuenta
  */
-import { WEBHOOK_PROXY_URL } from "@/lib/api-config";
+import { API_BASE_URL } from "@/lib/api-config";
 
 export type RegistrarWebhookFathomResult =
   | { ok: true; webhookId: string }
   | { ok: false; error: string };
 
 /**
- * URL que se registra en Fathom. Usa el proxy público (leadmaster.com.co/
- * webhooks/proxy/...) en vez del Cerebro directo, para que NO se exponga el
- * host interno (tracker-v1 / onrender). El proxy reenvía a /webhooks/fathom/:id.
- * Siempre incluye el id_cuenta para enrutar al tenant correcto.
+ * Base pública del webhook de Fathom. Por defecto el backend directo (que
+ * acepta POST y funciona). Para CAMUFLAR el host interno (tracker-v1/onrender)
+ * sin tocar código: agregá un custom domain en Render apuntando al backend
+ * (ej: hooks.leadmaster.com.co → tracker-v1-mhx6.onrender.com) y seteá la env
+ * NEXT_PUBLIC_FATHOM_WEBHOOK_BASE=https://hooks.leadmaster.com.co
+ * (Ojo: NO usar leadmaster.com.co pelado — ese host no procesa POST → 405.)
  */
+const FATHOM_WEBHOOK_BASE = process.env.NEXT_PUBLIC_FATHOM_WEBHOOK_BASE ?? API_BASE_URL;
+
 export function getFathomDestinationUrl(idCuenta: number): string {
-  const base = WEBHOOK_PROXY_URL.replace(/\/$/, "");
-  return `${base}/fathom/${idCuenta}`;
+  const base = FATHOM_WEBHOOK_BASE.replace(/\/$/, "");
+  return `${base}/webhooks/fathom/${idCuenta}`;
 }
 
 export async function registrarWebhookFathom(
