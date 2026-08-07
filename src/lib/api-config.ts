@@ -4,8 +4,9 @@
  */
 export const API_BASE_URL =
   process.env.CEREBRO_INTERNAL_URL ??
+  process.env.CEREBRO_API_URL ??
   process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "https://cerebro-tracker-v6-saas-git-450945964835.us-east1.run.app";
+  "https://tracker-v1-mhx6.onrender.com";
 
 /**
  * URL pública del proxy de webhooks — la que se muestra a clientes en docs.
