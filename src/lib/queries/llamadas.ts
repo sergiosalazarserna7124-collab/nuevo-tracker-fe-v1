@@ -160,6 +160,28 @@ export async function getLlamadas(
     };
   });
 
+  // Fallback de asesor para llamadas SIN closer: usar el asesor asignado al lead
+  // (registros_de_llamada.closer_mail/nombre_closer, que se sincroniza desde el
+  // assignedTo de GHL). Así las llamadas de un lead que YA tiene dueño no quedan
+  // en "sin asignar". Solo rellena cuando la llamada no trae closer real —
+  // nunca reescribe la atribución de quien sí hizo la llamada.
+  const leadAdvisorByReg = new Map<number, { mail: string | null; name: string | null }>();
+  for (const rr of regRowsResolved) {
+    if (rr.id_registro != null && (rr.closer_mail?.trim() || rr.nombre_closer?.trim())) {
+      leadAdvisorByReg.set(rr.id_registro, { mail: rr.closer_mail, name: rr.nombre_closer });
+    }
+  }
+  for (const r of registros) {
+    const tieneCloser = Boolean(r.closerMail?.trim() || r.closerName?.trim());
+    if (!tieneCloser && r.id_registro != null) {
+      const lead = leadAdvisorByReg.get(r.id_registro);
+      if (lead) {
+        r.closerMail = lead.mail;
+        r.closerName = lead.name;
+      }
+    }
+  }
+
   const leadKey = (r: ApiLlamadaLog) =>
     (r.leadEmail?.trim() && r.leadEmail) || (r.phone?.trim() && r.phone) || `id:${r.id}`;
   const regLeadKey = (r: { mail_lead: string | null; phone_raw_format: string | null; id_registro: number }) =>
