@@ -1019,7 +1019,18 @@ export async function getDashboard(
   }
 
   const rawConfigs = parseMetricasConfig(cuentaRow?.metricas_config);
-  const configs = rawConfigs.length > 0 ? normalizeMetricasConfig(rawConfigs) : DEFAULT_METRICAS_CONFIG;
+  let configs: MetricaConfig[];
+  if (rawConfigs.length > 0) {
+    const normalized = normalizeMetricasConfig(rawConfigs);
+    // Agregar métricas default del panel que falten en la config persistida
+    // (ej: "Speed to lead asesor" nuevo) → así las métricas nuevas aparecen
+    // aunque el tenant ya tenga metricas_config guardada.
+    const existingIds = new Set(normalized.map((m) => m.id));
+    const missingDefaults = DEFAULT_METRICAS_CONFIG.filter((m) => !existingIds.has(m.id));
+    configs = [...normalized, ...missingDefaults];
+  } else {
+    configs = DEFAULT_METRICAS_CONFIG;
+  }
 
   // Cargar datos de metricas_webhook para el período (suma por campo)
   const webhookRows = await db
