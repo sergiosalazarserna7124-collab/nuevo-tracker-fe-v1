@@ -543,7 +543,7 @@ export default function PerformanceVideollamadasPage() {
                                           <th className="px-2 py-2 font-medium">Nombre</th>
                                           <th className="px-2 py-2 font-medium">Correo</th>
                                           <th className="px-2 py-2 font-medium" title="¿Lead calificado?">Calificado</th>
-                                          <th className="px-2 py-2 font-medium">Citas realizadas</th>
+                                          <th className="px-2 py-2 font-medium">Citas agendadas</th>
                                           <th className="px-2 py-2 font-medium">Resultado</th>
                                           <th className="px-2 py-2 font-medium w-8" />
                                         </tr>
