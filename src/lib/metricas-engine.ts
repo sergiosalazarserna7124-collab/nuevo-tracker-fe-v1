@@ -21,6 +21,7 @@ export const KPI_DEFAULT_KEYS = [
   "cashCollected",
   "avgTicket",
   "speedToLeadAvg",
+  "speedToLeadAsesor",
   "avgAttempts",
   "agendadas",
   "asistidas",
@@ -59,6 +60,7 @@ export const KPI_DEFAULT_LABELS: Record<string, string> = {
   cashCollected: "Efectivo cobrado",
   avgTicket: "Ticket promedio",
   speedToLeadAvg: "Tiempo al lead (min)",
+  speedToLeadAsesor: "Speed to lead asesor (min)",
   avgAttempts: "Intentos promedio",
   agendadas: "Agendadas (citas)",
   asistidas: "Asistidas (citas)",
@@ -89,7 +91,8 @@ export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   { id: "default-contestadas", nombre: "Contestadas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 2, formato: "numero", color: "cyan", formula: { tipo: "directo", fuente: "contestadas" } },
   { id: "default-tasa-contestacion", nombre: "Tasa de contestación", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 3, formato: "porcentaje", color: "cyan", formula: { tipo: "directo", fuente: "answerRate" } },
   // --- Bloque 2: Velocidad y esfuerzo ---
-  { id: "default-speed", nombre: "Tiempo al lead", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 4, formato: "tiempo", color: "purple", formula: { tipo: "directo", fuente: "speedToLeadAvg" }, descripcion: "Minutos promedio hasta la primera llamada" },
+  { id: "default-speed", nombre: "Speed to lead general", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 4, formato: "tiempo", color: "purple", formula: { tipo: "directo", fuente: "speedToLeadAvg" }, descripcion: "Minutos promedio desde que se creó el lead hasta la primera llamada (sin importar horario ni zona)." },
+  { id: "default-speed-asesor", nombre: "Speed to lead asesor", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 5, formato: "tiempo", color: "cyan", formula: { tipo: "directo", fuente: "speedToLeadAsesor" }, descripcion: "Minutos promedio EN HORARIO LABORAL desde que se asignó el lead al asesor hasta la primera llamada." },
   { id: "default-intentos", nombre: "Intentos promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 5, formato: "decimal", color: "amber", formula: { tipo: "directo", fuente: "avgAttempts" }, descripcion: "Llamadas promedio por lead" },
   // --- Bloque 3: Pipeline de citas ---
   { id: "default-agendadas", nombre: "Citas agendadas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 6, formato: "numero", color: "purple", formula: { tipo: "directo", fuente: "meetingsBooked" } },
@@ -132,6 +135,7 @@ export function parseMetricasConfig(raw: unknown): MetricaConfig[] {
  */
 const KPI_CANONICAL_FORMAT: Partial<Record<string, MetricaConfig["formato"]>> = {
   speedToLeadAvg: "tiempo",
+  speedToLeadAsesor: "tiempo",
 };
 
 /**

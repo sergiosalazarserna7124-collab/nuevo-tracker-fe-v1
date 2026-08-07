@@ -45,7 +45,7 @@ function tzOffsetMs(date: Date, tz: string): number {
  * Convierte una hora de pared (`YYYY-MM-DD` + `HH:mm:ss.SSS`) interpretada en la
  * zona `tz` al instante UTC correspondiente.
  */
-function zonedWallTimeToUtc(dateStr: string, timeStr: string, tz: string): Date {
+export function zonedWallTimeToUtc(dateStr: string, timeStr: string, tz: string): Date {
   // Interpretación ingenua como si fuera UTC, corregida por el offset de la zona
   // en ese instante. Suficientemente exacto salvo en el salto exacto de DST.
   const naive = new Date(`${dateStr}T${timeStr}Z`);

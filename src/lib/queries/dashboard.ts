@@ -6,6 +6,7 @@ import { calcMetricaManual, calcMetricaAutomatica, DEFAULT_METRICAS_CONFIG, DEFA
 import { resolveFinancialValues } from "@/lib/queries/resolve-financial";
 import { eq, and, or, gt, gte, lte, isNull, isNotNull, inArray, sql } from "drizzle-orm";
 import { zonedDayRange } from "@/lib/date-range";
+import { businessMinutesBetween, HORARIO_LABORAL_DEFAULT } from "@/lib/business-hours";
 import { agendaDedupKey } from "./agenda-dedup-key";
 import { esLlamadaContestada } from "./llamadas";
 import type {
@@ -596,6 +597,28 @@ export async function getDashboard(
       )
   `);
   kpis.oportunidadesCreadas = Number((oppRes.rows[0] as { n?: number })?.n ?? 0);
+
+  // Speed to lead ASESOR: minutos EN HORARIO LABORAL desde fecha_asignacion hasta
+  // la primera llamada. Horario configurable por cuenta (default Lun-Vie 8-18).
+  const horarioLaboral = cuentaRow?.configuracion_ui?.horario_laboral ?? HORARIO_LABORAL_DEFAULT;
+  const tzCuenta = cuentaRow?.zona_horaria_iana ?? null;
+  const asesorRows = (await db.execute(sql`
+    SELECT fecha_asignacion, fecha_primera_llamada FROM registros_de_llamada
+    WHERE id_cuenta = ${idCuenta}
+      AND fecha_asignacion IS NOT NULL AND fecha_primera_llamada IS NOT NULL
+      AND fecha_primera_llamada >= ${fromDate} AND fecha_primera_llamada <= ${toDate}
+  `)).rows as Array<{ fecha_asignacion: string | Date; fecha_primera_llamada: string | Date }>;
+  const asesorMins: number[] = [];
+  for (const r of asesorRows) {
+    const asig = new Date(r.fecha_asignacion);
+    const call = new Date(r.fecha_primera_llamada);
+    if (call.getTime() > asig.getTime()) {
+      asesorMins.push(businessMinutesBetween(asig, call, horarioLaboral, tzCuenta));
+    }
+  }
+  kpis.speedToLeadAsesor = asesorMins.length > 0
+    ? asesorMins.reduce((s, v) => s + v, 0) / asesorMins.length
+    : 0;
 
   // Advisor ranking
   // Cargar mapa nombre_closer → email desde usuarios_dashboard para normalizar

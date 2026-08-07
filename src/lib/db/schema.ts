@@ -43,6 +43,14 @@ export interface ConfiguracionUI {
   kpis_visibles?: Record<string, string[]>;
   fuente_datos_financieros?: "nativa" | "api_externa";
   chat_config?: ChatConfig;
+  /** Horario laboral para el "speed to lead asesor" (minutos en horario). */
+  horario_laboral?: {
+    /** Días ISO: 1=Lun … 7=Dom. */
+    dias: number[];
+    /** "HH:MM" hora local de la cuenta. */
+    hora_inicio: string;
+    hora_fin: string;
+  };
   idioma?: "es" | "en";
   /** Columnas visibles en el ranking de asesores. Si undefined → todas visibles. */
   ranking_columnas?: string[];
