@@ -176,14 +176,16 @@ export async function getDashboard(
       eq(resumenesDiariosAgendas.categoria, 'PDTE'),
       isNotNull(resumenesDiariosAgendas.fecha_reunion),
       gt(resumenesDiariosAgendas.fecha_reunion, sql`NOW()`),
-      gte(resumenesDiariosAgendas.fecha, dateFrom),
-      lte(resumenesDiariosAgendas.fecha, dateTo),
+      // Fin de día del rango zonificado (no medianoche cruda): si no, una cita
+      // agendada por la tarde del último día del período queda excluida.
+      gte(resumenesDiariosAgendas.fecha, fromDate.toISOString()),
+      lte(resumenesDiariosAgendas.fecha, toDate.toISOString()),
     ),
     // Caso 3: sin fecha_reunion → usa fecha de inserción
     and(
       isNull(resumenesDiariosAgendas.fecha_reunion),
-      gte(resumenesDiariosAgendas.fecha, dateFrom),
-      lte(resumenesDiariosAgendas.fecha, dateTo),
+      gte(resumenesDiariosAgendas.fecha, fromDate.toISOString()),
+      lte(resumenesDiariosAgendas.fecha, toDate.toISOString()),
     ),
   )!;
   const agendaConditions = [
