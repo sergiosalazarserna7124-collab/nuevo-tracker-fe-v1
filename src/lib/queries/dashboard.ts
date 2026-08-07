@@ -1022,12 +1022,18 @@ export async function getDashboard(
   let configs: MetricaConfig[];
   if (rawConfigs.length > 0) {
     const normalized = normalizeMetricasConfig(rawConfigs);
-    // Agregar métricas default del panel que falten en la config persistida
-    // (ej: "Speed to lead asesor" nuevo) → así las métricas nuevas aparecen
-    // aunque el tenant ya tenga metricas_config guardada.
-    const existingIds = new Set(normalized.map((m) => m.id));
+    const defaultById = new Map(DEFAULT_METRICAS_CONFIG.map((m) => [m.id, m]));
+    // Sincronizar nombre + descripción de las métricas DEFAULT existentes, para
+    // que renombres/aclaraciones (ej: "Tiempo al lead" → "Speed to lead general")
+    // se apliquen aunque el tenant tenga metricas_config persistida.
+    const synced = normalized.map((m) => {
+      const def = defaultById.get(m.id);
+      return def ? { ...m, nombre: def.nombre, descripcion: def.descripcion } : m;
+    });
+    // Agregar las métricas default del panel que falten (ej: "Speed to lead asesor").
+    const existingIds = new Set(synced.map((m) => m.id));
     const missingDefaults = DEFAULT_METRICAS_CONFIG.filter((m) => !existingIds.has(m.id));
-    configs = [...normalized, ...missingDefaults];
+    configs = [...synced, ...missingDefaults];
   } else {
     configs = DEFAULT_METRICAS_CONFIG;
   }
