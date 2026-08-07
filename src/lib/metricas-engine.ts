@@ -30,6 +30,8 @@ export const KPI_DEFAULT_KEYS = [
   "ticket",
   "pendientesLlamadas",
   "leadsDescartados",
+  "leadsReactivados",
+  "oportunidadesCreadas",
   "attemptsToFirstContactAvg",
   "callsNuevos",
   "callsReactivados",
@@ -66,6 +68,8 @@ export const KPI_DEFAULT_LABELS: Record<string, string> = {
   ticket: "Ticket (citas)",
   pendientesLlamadas: "Llamadas pendientes",
   leadsDescartados: "Leads descartados",
+  leadsReactivados: "Leads reactivados",
+  oportunidadesCreadas: "Oportunidades creadas",
   attemptsToFirstContactAvg: "Intentos a primer contacto",
   callsNuevos: "Llamadas a nuevos",
   callsReactivados: "Llamadas a reactivados",
@@ -78,7 +82,9 @@ export const KPI_DEFAULT_LABELS: Record<string, string> = {
 /** Métricas por defecto para un CEO / líder comercial. Se usan si metricas_config está vacío. */
 export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   // --- Bloque 1: Generación de leads y contacto ---
-  { id: "default-leads", nombre: "Leads nuevos del período", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 0, formato: "numero", color: "blue", formula: { tipo: "directo", fuente: "totalLeads" }, descripcion: "Leads que llegaron al CRM por primera vez en este período. ⚠️ Este número puede ser MENOR que los leads del pipeline del asesor — el pipeline muestra todos los leads trabajados (incluyendo leads de períodos anteriores que siguen en gestión). Ej: si llegaron 145 leads nuevos esta semana pero el asesor también llamó a 30 leads de la semana pasada, el pipeline muestra 175 pero aquí aparecen 145." },
+  { id: "default-leads", nombre: "Leads nuevos", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 0, formato: "numero", color: "blue", formula: { tipo: "directo", fuente: "totalLeads" }, descripcion: "Todo lead creado en el CRM dentro del período seleccionado." },
+  { id: "default-reactivados", nombre: "Leads reactivados", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 1, formato: "numero", color: "cyan", formula: { tipo: "directo", fuente: "leadsReactivados" }, descripcion: "Leads creados ANTES del período pero con actividad dentro (chat, llamada o cita). Excluye descartados." },
+  { id: "default-oportunidades", nombre: "Oportunidades creadas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 2, formato: "numero", color: "purple", formula: { tipo: "directo", fuente: "oportunidadesCreadas" }, descripcion: "Oportunidades creadas en GHL dentro del período. Excluye leads descartados." },
   { id: "default-llamadas", nombre: "Llamadas realizadas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 1, formato: "numero", color: "cyan", formula: { tipo: "directo", fuente: "callsMade" } },
   { id: "default-contestadas", nombre: "Contestadas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 2, formato: "numero", color: "cyan", formula: { tipo: "directo", fuente: "contestadas" } },
   { id: "default-tasa-contestacion", nombre: "Tasa de contestación", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 3, formato: "porcentaje", color: "cyan", formula: { tipo: "directo", fuente: "answerRate" } },
