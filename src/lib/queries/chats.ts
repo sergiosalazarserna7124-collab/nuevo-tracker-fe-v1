@@ -139,14 +139,14 @@ export async function getChats(
           SELECT ${registrosDeLlamada.phone_raw_format}
           FROM ${registrosDeLlamada}
           WHERE ${registrosDeLlamada.ghl_contact_id} = ${chatsLogs.id_lead}
-            AND ${registrosDeLlamada.id_cuenta} = ${chatsLogs.id_cuenta}::text
+            AND ${registrosDeLlamada.id_cuenta} = ${chatsLogs.id_cuenta}
           LIMIT 1
         )`,
         leadEmail: sql<string | null>`(
           SELECT ${registrosDeLlamada.mail_lead}
           FROM ${registrosDeLlamada}
           WHERE ${registrosDeLlamada.ghl_contact_id} = ${chatsLogs.id_lead}
-            AND ${registrosDeLlamada.id_cuenta} = ${chatsLogs.id_cuenta}::text
+            AND ${registrosDeLlamada.id_cuenta} = ${chatsLogs.id_cuenta}
           LIMIT 1
         )`,
       })
