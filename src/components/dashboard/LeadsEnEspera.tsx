@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, User, Phone, Mail, MessageSquare, PhoneCall, Ban, MessageSquareX } from "lucide-react";
+import { Clock, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, User, Phone, Mail } from "lucide-react";
 import { useApiData } from "@/hooks/useApiData";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -64,52 +64,9 @@ const URGENCIA_STYLES: Record<UrgenciaNivel, { badge: string; dot: string }> = {
   },
 };
 
-// AUT-1944: detección de "sin contestar" marca como no-contestados leads que sí se contestaron.
-// Reactivar cuando la detección sea confiable.
-const SHOW_CHAT_SIN_CONTESTAR = false;
-
-const ALL_CANAL_OPTIONS: { value: CanalLeadsEnEspera; label: string; icon: typeof Phone }[] = [
-  { value: "ninguno", label: "Ninguno", icon: Ban },
-  { value: "llamada", label: "Llamada", icon: PhoneCall },
-  { value: "chat", label: "Chat", icon: MessageSquare },
-  { value: "chat_sin_contestar", label: "Sin contestar", icon: MessageSquareX },
-];
-
-const CANAL_OPTIONS = SHOW_CHAT_SIN_CONTESTAR
-  ? ALL_CANAL_OPTIONS
-  : ALL_CANAL_OPTIONS.filter((o) => o.value !== "chat_sin_contestar");
-
-const CANAL_SUBTITULO: Record<CanalLeadsEnEspera, string> = {
-  llamada: "primera llamada",
-  chat: "primera respuesta en chat",
-  ninguno: "ningún tipo de contacto",
-  chat_sin_contestar: "respuesta del lead en chat",
-};
-
-function CanalSelector({ canal, onChange }: { canal: CanalLeadsEnEspera; onChange: (c: CanalLeadsEnEspera) => void }) {
-  return (
-    <div className="flex rounded-lg border border-white/10 bg-slate-800/80 p-0.5">
-      {CANAL_OPTIONS.map((opt) => {
-        const Icon = opt.icon;
-        const active = canal === opt.value;
-        return (
-          <button
-            key={opt.value}
-            onClick={() => onChange(opt.value)}
-            className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              active
-                ? "bg-slate-600 text-slate-100 shadow-sm"
-                : "text-slate-400 hover:text-slate-300"
-            }`}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{opt.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// Modo ÚNICO (pedido de Sergio 2026-08-08): aquí solo aparecen leads SIN
+// NINGÚN contacto — ni una llamada registrada ni una conversación de chat.
+// Con cualquiera de las dos, el lead sale de esta lista. Sin selector de canal.
 
 function LeadRow({ lead, asesorBasePath, canal }: { lead: LeadEnEspera; asesorBasePath: string; canal: CanalLeadsEnEspera }) {
   const urgencia = getUrgencia(lead.min_sin_llamar);
@@ -222,7 +179,7 @@ function CloserCard({ grupo, asesorBasePath, canal }: { grupo: CloserConLeadsEnE
 }
 
 export default function LeadsEnEspera({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) {
-  const [canal, setCanal] = useState<CanalLeadsEnEspera>("ninguno");
+  const canal: CanalLeadsEnEspera = "ninguno";
   const pathname = usePathname();
   const asesorBasePath = pathname.replace(/\/[^/]*$/, "/asesor");
   const { data, loading, error } = useApiData<LeadsEnEsperaResponse>(
@@ -242,12 +199,9 @@ export default function LeadsEnEspera({ dateFrom, dateTo }: { dateFrom?: string;
   }
 
   if (error) return null;
-  const isSinContestar = canal === "chat_sin_contestar";
-  const seccionTitulo = isSinContestar ? "Sin contestar (chat)" : "Leads sin contacto inicial";
-  const helpTitulo = isSinContestar ? "Sin contestar (chat)" : "Leads sin contacto inicial";
-  const helpContenido = isSinContestar
-    ? `Leads contactados por un asesor o bot cuyo lead dejó de responder. Llevan más de ${data?.umbral_min ?? 60} min sin contestar.\n\nSolo aparecen chats donde ya hubo una respuesta del negocio, pero el lead no ha vuelto a escribir.`
-    : `Muestra leads que llevan más de ${data?.umbral_min ?? 60} min sin recibir contacto.\n\n• Llamada — leads sin primera llamada realizada\n• Chat — leads cuyo primer mensaje no ha sido respondido por un agente\n• Ninguno — leads sin ningún tipo de contacto (ni llamada ni respuesta en chat)`;
+  const seccionTitulo = "Leads sin contacto inicial";
+  const helpTitulo = "Leads sin contacto inicial";
+  const helpContenido = `Leads que llevan más de ${data?.umbral_min ?? 60} min SIN NINGÚN tipo de contacto: ni una llamada registrada ni una conversación de chat.\n\nEn cuanto el lead tenga una llamada O un chat, sale de esta lista automáticamente.`;
 
   if (!data || data.total === 0) {
     return (
@@ -261,13 +215,10 @@ export default function LeadsEnEspera({ dateFrom, dateTo }: { dateFrom?: string;
               contenido={helpContenido}
             />
           </div>
-          <CanalSelector canal={canal} onChange={setCanal} />
         </div>
         <div className="px-5 py-4">
           <span className="text-sm text-emerald-300">
-            Todo al día — {isSinContestar
-              ? `ningún lead contactado lleva más de ${data?.umbral_min ?? 60} min sin contestar.`
-              : `ningún lead lleva más de ${data?.umbral_min ?? 60} min sin ${CANAL_SUBTITULO[canal]}.`}
+            Todo al día — ningún lead lleva más de {data?.umbral_min ?? 60} min sin ningún tipo de contacto.
           </span>
         </div>
       </div>
@@ -293,11 +244,8 @@ export default function LeadsEnEspera({ dateFrom, dateTo }: { dateFrom?: string;
         </div>
         <div className="flex items-center gap-3">
           <p className="hidden text-xs text-slate-500 sm:block">
-            {isSinContestar
-              ? `Contactados hace más de ${data.umbral_min} min sin respuesta del lead`
-              : `Llevan más de ${data.umbral_min} min esperando ${CANAL_SUBTITULO[canal]}`}
+            Llevan más de {data.umbral_min} min sin ningún tipo de contacto (ni llamada ni chat)
           </p>
-          <CanalSelector canal={canal} onChange={setCanal} />
         </div>
       </div>
 
