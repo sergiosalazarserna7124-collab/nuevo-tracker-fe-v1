@@ -34,6 +34,7 @@ export const KPI_DEFAULT_KEYS = [
   "noShows",
   "ticket",
   "pendientesLlamadas",
+  "pendientesAgendas",
   "leadsDescartados",
   "leadsReactivados",
   "oportunidadesCreadas",
@@ -77,6 +78,7 @@ export const KPI_DEFAULT_LABELS: Record<string, string> = {
   noShows: "No shows",
   ticket: "Ticket (citas)",
   pendientesLlamadas: "Llamadas pendientes",
+  pendientesAgendas: "Videollamadas pendientes",
   leadsDescartados: "Leads descartados",
   leadsReactivados: "Leads reactivados",
   oportunidadesCreadas: "Oportunidades creadas",
@@ -108,6 +110,7 @@ export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   { id: "default-tasa-agendamiento", nombre: "Tasa de agendamiento", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 8, formato: "porcentaje", color: "purple", formula: { tipo: "directo", fuente: "tasaAgendamiento" }, descripcion: "Citas ÷ Leads trabajados" },
   { id: "default-no-shows", nombre: "No shows", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 8, formato: "numero", color: "amber", formula: { tipo: "directo", fuente: "noShows" }, descripcion: "Personas que no se presentaron" },
   { id: "default-canceladas", nombre: "Canceladas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 9, formato: "numero", color: "red", formula: { tipo: "directo", fuente: "meetingsCanceled" }, descripcion: "Citas canceladas por el lead" },
+  { id: "default-pendientes-agendas", nombre: "Videollamadas pendientes", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 9, formato: "numero", color: "blue", formula: { tipo: "directo", fuente: "pendientesAgendas" }, descripcion: "Citas agendadas sin resultado aún: la reunión no ha ocurrido, o pasó y espera clasificación (Fathom o el barrido nocturno de no-shows)" },
   // --- Bloque 4: Cierre ---
   { id: "default-tasa-cierre", nombre: "Tasa de cierre", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 10, formato: "porcentaje", color: "green", formula: { tipo: "directo", fuente: "tasaCierre" }, descripcion: "Cerradas ÷ Asistidas" },
   // --- Bloque 5: Dinero ---
