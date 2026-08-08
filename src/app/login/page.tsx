@@ -1,5 +1,9 @@
 import LoginForm from "@/components/login-form";
 
+// Leer las env de Google en cada request (no en build): si se agregan o
+// quitan GOOGLE_CLIENT_ID/SECRET, el botón aparece sin rebuild.
+export const dynamic = "force-dynamic";
+
 export default function LoginPage() {
   const googleEnabled = Boolean(
     process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
