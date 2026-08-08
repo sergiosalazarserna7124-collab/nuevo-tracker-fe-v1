@@ -508,8 +508,7 @@ export async function getAsesorData(
       leadEmail: emailFromMsg ?? ch.id_lead ?? null,
       idLead: ch.id_lead ?? null,
       iaCategoria: ch.ia_categoria ?? null,
-      // ia_resumen se cablea en la Fase 2 (columna nueva + backfill). Por ahora null.
-      iaResumen: null,
+      iaResumen: ch.ia_resumen ?? null,
       asesorName,
       estado: ch.estado ?? "activo",
       fechaUltimoMensaje: ch.fecha_y_hora_z?.toISOString() ?? dateFrom,
