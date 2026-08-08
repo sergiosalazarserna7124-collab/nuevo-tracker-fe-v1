@@ -37,7 +37,6 @@ import { useTheme } from "@/contexts/ThemeContext";
 import clsx from "clsx";
 import InsightsChat from "@/components/dashboard/InsightsChat";
 import ActivityTracker from "@/components/dashboard/ActivityTracker";
-import ReportButton from "@/components/dashboard/ReportButton";
 import { UserFilterProvider, useUserFilter } from "@/contexts/UserFilterContext";
 import { LayoutGrid } from "lucide-react";
 import { puedeVerRuta, NAV_PERMISOS } from "@/lib/permisos";
@@ -167,7 +166,7 @@ const NAV_ITEMS: { path: string; navKey: NavKey; label: string; icon: React.Elem
   { path: "/sesiones", navKey: "sesiones", label: "Sesiones de enfoque", icon: Sparkles, beta: true },
   { path: "/tablero-enfoque", navKey: "tablero-enfoque", label: "Tablero de operación", icon: Activity, beta: true },
   { path: "/asignacion", navKey: "asignacion", label: "Asignación de leads", icon: UserPlus, beta: true },
-  { path: "/reportes", navKey: "reportes", label: "Reportes", icon: TrendingUp },
+  // "Reportes" oculto por decisión de producto (2026-08) — se reescribirá completo.
   { path: "/system", navKey: "sistema", label: "Control del sistema", icon: Target },
   { path: "/documentacion", navKey: "documentacion", label: "Documentación", icon: BookOpen },
   { path: "/configuracion", navKey: "configuracion", label: "Configuración", icon: UserCog },
@@ -701,7 +700,7 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
       )}
 
       {insightsOpen && <InsightsChat onClose={() => setInsightsOpen(false)} />}
-      <ReportButton />
+      {/* ReportButton oculto por decisión de producto (2026-08) — Reportes se reescribirá */}
     </div>
     </LocaleProvider>
   );

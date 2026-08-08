@@ -97,7 +97,7 @@ export default function DocumentacionPage() {
               Etiquetas que pone el sistema
             </CardTitle>
             <CardDescription>
-              Todas terminan en <Etiqueta>autoia</Etiqueta> o <Etiqueta>callai</Etiqueta> para
+              Todas terminan en <Etiqueta>_lm</Etiqueta> o <Etiqueta>callai</Etiqueta> para
               distinguirlas de las etiquetas manuales del equipo. Se aplican solas según lo que llega.
             </CardDescription>
           </CardHeader>
@@ -105,30 +105,24 @@ export default function DocumentacionPage() {
             <div>
               <p className="mb-1.5 font-medium text-white flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-accent-purple" /> Por el estado de la cita</p>
               <TablaEtiquetas>
-                <Fila etiqueta="pdteautoia" cuando="Se agendó una cita y está pendiente de realizarse" />
-                <Fila etiqueta="canceladaautoia" cuando="La cita fue cancelada" />
-                <Fila etiqueta="reagendadoautoia" cuando="La cita fue reagendada (por el lead o por la IA de voz)" />
-                <Fila etiqueta="noshowautoia" cuando="El lead no se presentó (lo detecta Fathom o el barrido diario de citas vencidas)" />
-                <Fila etiqueta="perdidoautoia" cuando="La cita se dio por perdida" />
+                <Fila etiqueta="no_show_lm" cuando="El lead no se presentó a la cita (lo detecta Fathom o el barrido diario de citas vencidas). Es la ÚNICA etiqueta de citas: agendada, cancelada o reagendada no llevan etiqueta" />
               </TablaEtiquetas>
             </div>
             <div>
               <p className="mb-1.5 font-medium text-white flex items-center gap-1.5"><Video className="w-3.5 h-3.5 text-accent-amber" /> Por el resultado de la videollamada (IA + Fathom)</p>
               <TablaEtiquetas>
-                <Fila etiqueta="videollamada_efectiva_autoia" cuando="La reunión ocurrió con interacción real (hay grabación/transcripción)" />
-                <Fila etiqueta="ofertadaautoia" cuando="La IA detectó que se presentó una oferta en la reunión" />
-                <Fila etiqueta="noofertadaautoia" cuando="La reunión ocurrió pero no se llegó a ofertar" />
-                <Fila etiqueta="cerradaautoia" cuando="La IA detectó cierre de venta en la reunión" />
+                <Fila etiqueta="videollamada_efectiva_lm" cuando="La reunión ocurrió con interacción real (hay grabación/transcripción)" />
+                <Fila etiqueta="cerrada_lm" cuando="La IA detectó cierre de venta CON pago: solo se pone si hubo cash collected o facturación mayor a 0" />
               </TablaEtiquetas>
             </div>
             <div>
               <p className="mb-1.5 font-medium text-white flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-accent-blue" /> Por el resultado de la llamada telefónica (IA)</p>
               <TablaEtiquetas>
-                <Fila etiqueta="contestada_autoia_llamada" cuando="La llamada fue contestada" />
-                <Fila etiqueta="no_contestallamadaautoia" cuando="La llamada no fue contestada" />
-                <Fila etiqueta="interesadollamadaautoia" cuando="La IA clasificó al lead como interesado en la llamada" />
-                <Fila etiqueta="no_interesadollamadaautoia" cuando="La IA clasificó al lead como no interesado" />
-                <Fila etiqueta="programadollamadaautoia" cuando="En la llamada se programó una cita" />
+                <Fila etiqueta="contestada_llamada_lm" cuando="La llamada fue contestada (la no contestada NO lleva etiqueta)" />
+                <Fila etiqueta="interesadollamada_lm" cuando="La IA clasificó al lead como interesado en la llamada" />
+                <Fila etiqueta="no_interesadollamada_lm" cuando="La IA clasificó al lead como no interesado" />
+                <Fila etiqueta="programadollamada_lm" cuando="En la llamada se programó una cita" />
+                <Fila etiqueta="seguimientollamada_lm" cuando="Contestó pero sin resultado comercial claro — queda en seguimiento" />
               </TablaEtiquetas>
             </div>
             <div>
@@ -212,16 +206,17 @@ export default function DocumentacionPage() {
             </CardTitle>
             <CardDescription>Se agregan automáticamente en GHL, en el timeline del contacto.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <TablaEtiquetas>
-              <Fila etiqueta="📞 Llamada GHL — Análisis IA" cuando="Resumen de la llamada generado por la IA (qué se habló, resultado)" />
-              <Fila etiqueta="📞 Llamada GHL — Transcripción" cuando="Transcripción completa de la llamada (si está activada en la cuenta)" />
+              <Fila etiqueta="📞 Llamada GHL — Análisis IA" cuando="Análisis simple de la llamada generado por la IA: temas que se tocaron, puntos importantes y resultado final" />
               <Fila etiqueta="Llamada no contestada" cuando="Nota simple cuando la llamada no fue contestada" />
-              <Fila etiqueta="🎥 Videollamada — Análisis IA" cuando="Resumen de la reunión: resultado, facturación detectada, objeciones y etiquetas" />
-              <Fila etiqueta="📞 Agente de voz — LeadMaster" cuando="Estado final de la llamada del agente IA, resumen, reagendamiento y transcript" />
-              <Fila etiqueta="⚠️ Alerta speed-to-lead" cuando="El lead lleva demasiado tiempo sin ser contactado (incluye asesor asignado)" />
-              <Fila etiqueta="🚨 Escalación a manager" cuando="El lead sigue sin contacto después de la primera alerta" />
+              <Fila etiqueta="🎥 Videollamada — Análisis IA" cuando="Análisis según el prompt de videollamadas: resultado, facturación detectada, objeciones, etiquetas y el 🔗 link a la grabación de Fathom" />
+              <Fila etiqueta="📞 Agente de voz — LeadMaster" cuando="Estado final de la llamada del agente IA, resumen y reagendamiento" />
             </TablaEtiquetas>
+            <p className="text-xs text-gray-500">
+              Las notas NO incluyen transcripciones completas. La transcripción de la videollamada
+              se guarda en el campo <Etiqueta>transcrip_fathom</Etiqueta> del contacto.
+            </p>
           </CardContent>
         </Card>
 
@@ -254,10 +249,10 @@ export default function DocumentacionPage() {
           </CardHeader>
           <CardContent>
             <TablaEtiquetas>
+              <Fila etiqueta="transcrip_fathom" cuando="Campo personalizado del contacto (se crea solo): guarda la transcripción completa de cada videollamada de Fathom" />
               <Fila etiqueta="Tipo de interés" cuando="Campo personalizado de la oportunidad: la IA escribe por qué el lead califica (si la cuenta lo tiene configurado)" />
               <Fila etiqueta="Razón de no calificado" cuando="Campo personalizado de la oportunidad: la IA escribe por qué el lead NO califica (si está configurado)" />
               <Fila etiqueta="Datos del contacto" cuando="Nombre, email, teléfono y asesor asignado se sincronizan de GHL al dashboard en cada actualización" />
-              <Fila etiqueta="Estado de la cita" cuando="Confirmada / cancelada / reagendada se sincronizan a la agenda del dashboard; Fathom luego escribe el resultado real de la reunión" />
             </TablaEtiquetas>
           </CardContent>
         </Card>
