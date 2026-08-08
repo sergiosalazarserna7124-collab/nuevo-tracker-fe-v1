@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { usuariosDashboard } from "@/lib/db/schema";
+import { usuariosDashboard, accesosDashboard } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export async function GET(req: Request) {
@@ -24,6 +24,24 @@ export async function GET(req: Request) {
   const email = session?.user?.email?.trim().toLowerCase();
   if (!email) {
     return NextResponse.redirect(new URL("/login", base));
+  }
+
+  // Registrar el acceso (los logins con Google pasan siempre por aquí;
+  // los de código OTP se registran en verifyLoginCodeAction)
+  try {
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      req.headers.get("x-real-ip") ??
+      null;
+    await db.insert(accesosDashboard).values({
+      id_cuenta: session?.user?.id_cuenta ?? null,
+      email,
+      nombre: session?.user?.name ?? null,
+      ip,
+      user_agent: req.headers.get("user-agent") ?? null,
+    });
+  } catch (e) {
+    console.error("[post-login] error registrando acceso:", e);
   }
 
   const [{ count }] = await db

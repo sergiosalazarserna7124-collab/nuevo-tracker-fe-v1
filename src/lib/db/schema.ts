@@ -487,6 +487,20 @@ export const usuariosDashboard = pgTable("usuarios_dashboard", {
 });
 
 /* ------------------------------------------------------------------ */
+/*  actividad_dashboard — páginas visitadas y clics por usuario       */
+/* ------------------------------------------------------------------ */
+
+export const actividadDashboard = pgTable("actividad_dashboard", {
+  id: serial("id").primaryKey(),
+  id_cuenta: integer("id_cuenta"),
+  email: text("email").notNull(),
+  tipo: text("tipo").notNull(), // 'page_view' | 'click'
+  pagina: text("pagina"),
+  detalle: text("detalle"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ------------------------------------------------------------------ */
 /*  login_codes — códigos de verificación para login sin contraseña   */
 /* ------------------------------------------------------------------ */
 

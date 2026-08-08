@@ -36,6 +36,7 @@ import {
 import { useTheme } from "@/contexts/ThemeContext";
 import clsx from "clsx";
 import InsightsChat from "@/components/dashboard/InsightsChat";
+import ActivityTracker from "@/components/dashboard/ActivityTracker";
 import ReportButton from "@/components/dashboard/ReportButton";
 import { UserFilterProvider, useUserFilter } from "@/contexts/UserFilterContext";
 import { LayoutGrid } from "lucide-react";
@@ -490,6 +491,7 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <LocaleProvider locale={locale}>
+    <ActivityTracker />
     <div className="min-h-screen flex flex-col md:flex-row bg-[var(--bg)]" style={{ background: "var(--bg)", backgroundImage: "var(--bg-gradient)" }}>
 
       {/* ⚠️ ALERTA GLOBAL: Token GHL inválido */}

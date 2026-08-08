@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/hooks/useSession";
 import PageHeader from "@/components/dashboard/PageHeader";
 import HelpTooltip from "@/components/dashboard/HelpTooltip";
-import { LogIn, Users, Clock, Filter } from "lucide-react";
+import { LogIn, Users, Clock, Filter, MousePointerClick, Eye, Activity } from "lucide-react";
 
 interface AccesoRow {
   id: number;
@@ -23,6 +23,17 @@ interface ResumenRow {
   nombre_cuenta: string | null;
   total: number;
   ultimo_acceso: string;
+}
+
+interface EventoRow {
+  id: number;
+  id_cuenta: number | null;
+  nombre_cuenta: string | null;
+  email: string;
+  tipo: "page_view" | "click";
+  pagina: string | null;
+  detalle: string | null;
+  created_at: string;
 }
 
 function formatFecha(iso: string): string {
@@ -46,42 +57,92 @@ function tiempoRelativo(iso: string): string {
   return `hace ${days}d`;
 }
 
+/** /dashboard → Panel ejecutivo, etc. (nombre legible de la página) */
+const NOMBRES_PAGINAS: Record<string, string> = {
+  "/dashboard": "Panel ejecutivo",
+  "/performance": "Rendimiento",
+  "/acquisition": "Adquisición & Ads",
+  "/comparaciones": "Proyecciones",
+  "/reportes": "Reportes",
+  "/system": "Control del sistema",
+  "/documentacion": "Documentación",
+  "/configuracion": "Configuración",
+  "/accesos": "Registro de accesos",
+  "/bandeja": "Bandeja",
+  "/asesor": "Vista asesor",
+  "/comisiones": "Comisiones",
+  "/enfoque": "Modo enfoque",
+};
+
+function nombrePagina(path: string | null): string {
+  if (!path) return "—";
+  const match = Object.entries(NOMBRES_PAGINAS).find(([p]) => path.includes(p));
+  return match ? match[1] : path;
+}
+
 export default function AccesosPage() {
-  const { data: session } = useSession();
-  const isPlatformAdmin = session?.user?.platformAdmin === true;
-  const isSuperadmin = session?.user?.rol === "superadmin";
+  const { session, loading: sessionLoading } = useSession();
+  const isPlatformAdmin = session?.platformAdmin === true;
+  const isSuperadmin = session?.rol === "superadmin";
+  const puedeVer = isPlatformAdmin || isSuperadmin;
 
   const [accesos, setAccesos] = useState<AccesoRow[]>([]);
   const [resumen, setResumen] = useState<ResumenRow[]>([]);
+  const [eventos, setEventos] = useState<EventoRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState(30);
   const [filterCuenta, setFilterCuenta] = useState<string>("");
+  const [filterUsuario, setFilterUsuario] = useState<string>("");
+  const [filterTipo, setFilterTipo] = useState<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ dias: String(dias) });
       if (filterCuenta) params.set("id_cuenta", filterCuenta);
-      const res = await fetch(`/api/data/accesos?${params}`);
-      if (res.ok) {
-        const data = await res.json();
+
+      const actParams = new URLSearchParams(params);
+      if (filterUsuario) actParams.set("email", filterUsuario);
+      if (filterTipo) actParams.set("tipo", filterTipo);
+
+      const [resAccesos, resActividad] = await Promise.all([
+        fetch(`/api/data/accesos?${params}`),
+        fetch(`/api/data/actividad?${actParams}`),
+      ]);
+      if (resAccesos.ok) {
+        const data = await resAccesos.json();
         setAccesos(data.accesos ?? []);
         setResumen(data.resumen ?? []);
+      }
+      if (resActividad.ok) {
+        const data = await resActividad.json();
+        setEventos(data.eventos ?? []);
       }
     } catch {
       /* fail silently */
     }
     setLoading(false);
-  }, [dias, filterCuenta]);
+  }, [dias, filterCuenta, filterUsuario, filterTipo]);
 
   useEffect(() => {
-    if (isPlatformAdmin || isSuperadmin) load();
-  }, [isPlatformAdmin, isSuperadmin, load]);
+    if (puedeVer) load();
+  }, [puedeVer, load]);
 
-  if (!isPlatformAdmin && !isSuperadmin) {
+  if (sessionLoading) {
     return (
       <>
-        <PageHeader title="Accesos" subtitle="Registro de logins" />
+        <PageHeader title="Registro de accesos" subtitle="Cargando..." />
+        <div className="flex items-center justify-center min-h-[200px]">
+          <p className="text-gray-400 animate-pulse">Cargando...</p>
+        </div>
+      </>
+    );
+  }
+
+  if (!puedeVer) {
+    return (
+      <>
+        <PageHeader title="Accesos" subtitle="Registro de logins y actividad" />
         <div className="p-4">
           <p className="text-gray-400 text-sm">No tienes permiso para ver esta sección.</p>
         </div>
@@ -97,11 +158,15 @@ export default function AccesosPage() {
     ),
   );
 
+  const usuariosUnicos = Array.from(
+    new Map(resumen.map((r) => [r.email, r.nombre ?? r.email])),
+  );
+
   return (
     <>
       <PageHeader
         title="Registro de accesos"
-        subtitle="Quién entra al dashboard y con qué frecuencia"
+        subtitle="Quién entra, qué páginas visita y qué hace en el dashboard"
       />
       <div className="p-3 md:p-4 max-w-5xl mx-auto space-y-4 text-sm">
         {/* Filtros */}
@@ -136,7 +201,7 @@ export default function AccesosPage() {
           )}
           <HelpTooltip
             titulo="Registro de accesos"
-            contenido="Muestra cada login exitoso al dashboard: quién entró, desde qué IP, y cuántas veces. Útil para saber qué usuarios están activos y cuáles dejaron de entrar."
+            contenido="Cada login exitoso (con Google o código), las páginas que visita cada usuario y los botones que toca. La actividad se conserva 90 días."
           />
         </div>
 
@@ -207,7 +272,86 @@ export default function AccesosPage() {
               )}
             </div>
 
-            {/* Historial detallado */}
+            {/* Actividad: páginas y clics */}
+            <div className="rounded-xl border border-surface-500 bg-surface-800/80 overflow-hidden">
+              <div className="px-4 py-3 border-b border-surface-500 flex flex-wrap items-center gap-2">
+                <Activity className="w-4 h-4 text-accent-purple" />
+                <h3 className="font-semibold text-white">Actividad</h3>
+                <span className="text-xs text-gray-500">
+                  ({eventos.length} evento{eventos.length !== 1 ? "s" : ""})
+                </span>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  <select
+                    value={filterUsuario}
+                    onChange={(e) => setFilterUsuario(e.target.value)}
+                    className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1 text-xs text-white"
+                  >
+                    <option value="">Todos los usuarios</option>
+                    {usuariosUnicos.map(([email, nombre]) => (
+                      <option key={email} value={email}>{nombre}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={filterTipo}
+                    onChange={(e) => setFilterTipo(e.target.value)}
+                    className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1 text-xs text-white"
+                  >
+                    <option value="">Todo</option>
+                    <option value="page_view">Páginas visitadas</option>
+                    <option value="click">Clics</option>
+                  </select>
+                </div>
+              </div>
+              {eventos.length === 0 ? (
+                <div className="p-6 text-center text-gray-500 text-sm">
+                  Sin actividad registrada en el período. La actividad se empieza a
+                  registrar desde que esta versión está desplegada.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-surface-800">
+                      <tr className="text-left text-gray-400 text-xs border-b border-surface-600">
+                        <th className="px-4 py-2">Fecha</th>
+                        <th className="px-4 py-2">Usuario</th>
+                        <th className="px-4 py-2">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventos.map((e) => (
+                        <tr
+                          key={e.id}
+                          className="border-b border-surface-700 hover:bg-surface-700/50"
+                        >
+                          <td className="px-4 py-2 text-gray-400 whitespace-nowrap">
+                            <span title={formatFecha(e.created_at)}>
+                              {tiempoRelativo(e.created_at)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-white whitespace-nowrap">{e.email}</td>
+                          <td className="px-4 py-2">
+                            {e.tipo === "page_view" ? (
+                              <span className="text-gray-300">
+                                <Eye className="w-3.5 h-3.5 inline-block mr-1.5 text-accent-blue" />
+                                Entró a <span className="text-white font-medium">{nombrePagina(e.pagina)}</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">
+                                <MousePointerClick className="w-3.5 h-3.5 inline-block mr-1.5 text-accent-amber" />
+                                Clic en <span className="text-white font-medium">«{e.detalle ?? "(sin texto)"}»</span>
+                                <span className="text-gray-500 text-xs ml-1.5">en {nombrePagina(e.pagina)}</span>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Historial detallado de logins */}
             <div className="rounded-xl border border-surface-500 bg-surface-800/80 overflow-hidden">
               <div className="px-4 py-3 border-b border-surface-500 flex items-center gap-2">
                 <LogIn className="w-4 h-4 text-accent-green" />
