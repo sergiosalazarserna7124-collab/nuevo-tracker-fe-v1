@@ -33,7 +33,7 @@ export async function listUsuarios(idCuenta: number): Promise<UsuarioRow[]> {
       activo: usuariosDashboard.activo,
     })
     .from(usuariosDashboard)
-    .where(eq(usuariosDashboard.id_cuenta, idCuenta));
+    .where(and(eq(usuariosDashboard.id_cuenta, idCuenta), eq(usuariosDashboard.activo, true)));
 
   return rows as UsuarioRow[];
 }
