@@ -5,7 +5,6 @@ import { useT } from '@/contexts/LocaleContext';
 import PageHeader from '@/components/dashboard/PageHeader';
 import KPICard from '@/components/dashboard/KPICard';
 import LeadsEnEspera from '@/components/dashboard/LeadsEnEspera';
-import SegmentacionCalificados from '@/components/dashboard/SegmentacionCalificados';
 import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import TagFilter from '@/components/dashboard/TagFilter';
 import KpiTooltip from '@/components/dashboard/KpiTooltip';
@@ -15,11 +14,11 @@ import MapaTiempos from '@/components/dashboard/MapaTiempos';
 import { useApiData } from '@/hooks/useApiData';
 import type { DashboardResponse, DashboardAdvisorRow, LeadDetailItem, DashboardObjecionConDetalle, DashboardObjecionesPorCanal } from '@/types';
 import Link from 'next/link';
-import { Target, X, UserCircle, Trophy, GitBranch, Pencil, Eye, EyeOff, HelpCircle, Tag as TagIcon, Zap, SlidersHorizontal, Download, ChevronDown, ChevronUp, Users } from 'lucide-react';
+import { Target, X, Trophy, GitBranch, Pencil, Eye, EyeOff, HelpCircle, Tag as TagIcon, Zap, SlidersHorizontal, Download, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import { exportDashboardToExcel } from '@/lib/export-excel';
 import { subDays, format } from 'date-fns';
 import clsx from 'clsx';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { formatCurrency, formatBigNumber, formatPct, formatMinutes } from '@/lib/format';
 
 const fm = formatCurrency;
@@ -87,7 +86,6 @@ export default function DashboardPage() {
   const [modalObjecionDetalle, setModalObjecionDetalle] = useState<{ name: string; details: DashboardObjecionConDetalle['details'] } | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showObjeciones, setShowObjeciones] = useState(() => typeof window !== 'undefined' ? localStorage.getItem('dash_showObj') !== 'false' : true);
-  const [showVolumen, setShowVolumen] = useState(() => typeof window !== 'undefined' ? localStorage.getItem('dash_showVol') !== 'false' : true);
   const [showRazonesPerdida, setShowRazonesPerdida] = useState(() => typeof window !== 'undefined' ? localStorage.getItem('dash_showRP') !== 'false' : true);
   const [drillDownAdvisor, setDrillDownAdvisor] = useState<{ name: string; email: string | null } | null>(null);
   const [modalLeads, setModalLeads] = useState<{ titulo: string; leads: LeadDetailItem[] } | null>(null);
@@ -115,7 +113,6 @@ export default function DashboardPage() {
     ) : null;
 
   const toggleObjeciones = () => setShowObjeciones((v) => { const next = !v; if (typeof window !== 'undefined') localStorage.setItem('dash_showObj', String(next)); return next; });
-  const toggleVolumen = () => setShowVolumen((v) => { const next = !v; if (typeof window !== 'undefined') localStorage.setItem('dash_showVol', String(next)); return next; });
   const toggleRazonesPerdida = () => setShowRazonesPerdida((v) => { const next = !v; if (typeof window !== 'undefined') localStorage.setItem('dash_showRP', String(next)); return next; });
 
   const { data, loading, error, refetch } = useApiData<DashboardResponse>('/api/data/dashboard', { from: dateFrom, to: dateTo, tags: selectedTags.length > 0 ? selectedTags.join(',') : undefined });
@@ -130,7 +127,6 @@ export default function DashboardPage() {
   const objeciones = data?.objeciones ?? [];
   const objecionesPorCanal: DashboardObjecionesPorCanal[] = data?.objecionesPorCanal ?? [];
   const razonesPerdida = data?.razonesPerdida ?? [];
-  const volumeByDay = data?.volumeByDay ?? [];
   const advisorRanking = data?.advisorRanking ?? [];
 
   const seccionesOcultas: string[] = Array.isArray(data?.configuracion_ui?.secciones_ocultas)
@@ -471,13 +467,6 @@ export default function DashboardPage() {
           })()}
         </section>}
 
-        {(data?.segmentacionCalificadoCanal?.length ?? 0) > 0 && (
-          <SegmentacionCalificados
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            segmentacion={data?.segmentacionCalificadoCanal}
-          />
-        )}
 
         {/* 🎯 Progreso de Metas por Canal */}
         {(data?.alertasMetas?.length ?? 0) > 0 && !seccionesOcultas.includes('panel_metas') && (() => {
@@ -603,133 +592,6 @@ export default function DashboardPage() {
           );
         })()}
 
-        {(data?.chatKpis?.total ?? 0) > 0 && data?.configuracion_ui?.modulos_activos?.seccion_chats_dashboard !== false && (
-          <section className="rounded-xl border border-surface-500 bg-surface-800/80 p-3 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                💬 {t.dashboard.resumenChats}
-              </h2>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40 font-semibold">
-                {data!.chatKpis!.total} chats
-              </span>
-            </div>
-
-            {/* KPI cards de chats */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-              {[
-                {
-                  label: t.dashboard.kpis.totalChats,
-                  value: data!.chatKpis!.total,
-                  color: 'cyan',
-                  sub: undefined,
-                  tooltip: 'Conversaciones de chat registradas en el período seleccionado (no excluidas). Un chat = una conversación con un lead, sin importar cuántos mensajes tenga.',
-                },
-                {
-                  label: t.dashboard.kpis.leadsUnicos,
-                  value: data!.chatKpis!.leadsUnicos,
-                  color: 'purple',
-                  sub: undefined,
-                  tooltip: 'Leads distintos (por chatid) que iniciaron al menos un chat en el período.',
-                },
-                {
-                  label: t.dashboard.kpis.conRespuesta,
-                  value: data!.chatKpis!.conRespuesta,
-                  color: 'green',
-                  sub: `${data!.chatKpis!.tasaRespuesta.toFixed(1)}% tasa resp.`,
-                  tooltip: 'Chats donde un agente humano respondió al lead. Si hay chatbot, solo cuenta respuestas después de la toma de atención.',
-                },
-                {
-                  label: 'Speed to lead',
-                  value: (() => {
-                    const n = data!.chatKpis!.speedToLeadCount;
-                    const s = n > 0 && n < 5 && data!.chatKpis!.speedToLeadMedian != null
-                      ? data!.chatKpis!.speedToLeadMedian
-                      : data!.chatKpis!.speedToLeadAvg;
-                    if (s == null) return '—';
-                    if (s < 60) return `${Math.round(s)}s`;
-                    if (s < 3600) return `${(s / 60).toFixed(1)} min`;
-                    return `${(s / 3600).toFixed(1)} h`;
-                  })(),
-                  color: 'amber',
-                  sub: (() => {
-                    const n = data!.chatKpis!.speedToLeadCount;
-                    if (n === 0) return 'sin datos';
-                    const tipo = n < 5 ? 'mediana' : 'promedio';
-                    return `${tipo} (n=${n})`;
-                  })(),
-                  tooltip: 'Tiempo entre el primer mensaje del lead y la primera respuesta de un agente humano.',
-                },
-                {
-                  label: t.dashboard.kpis.msgsPromedio,
-                  value: data!.chatKpis!.mensajesPromedioPorLead != null
-                    ? data!.chatKpis!.mensajesPromedioPorLead.toFixed(1)
-                    : '—',
-                  color: 'pink',
-                  sub: undefined,
-                  tooltip: 'Total de mensajes (de lead + agente) dividido entre el número de leads únicos en el período.',
-                },
-              ].map(({ label, value, color, sub, tooltip }) => (
-                <div key={label} className={`rounded-lg pl-3 overflow-hidden flex flex-col card-futuristic-${color} kpi-card-fixed`}>
-                  <p className="text-[9px] font-medium text-gray-400 uppercase tracking-tight mt-1 truncate flex items-center gap-1">
-                    {label}
-                    <HelpTooltip titulo={label} contenido={tooltip} />
-                  </p>
-                  <p className={`text-base font-bold mt-0.5 text-accent-${color} break-words`}>{value}</p>
-                  {sub && <p className="text-[10px] text-gray-500 mt-0.5">{sub}</p>}
-                  <div className="kpi-card-spacer" />
-                </div>
-              ))}
-            </div>
-
-            {/* Distribución de canales */}
-            {Object.keys(data!.chatKpis!.distribucionCanales).length > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 font-medium">Canales</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(data!.chatKpis!.distribucionCanales)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([channel, count]) => (
-                      <span
-                        key={channel}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-surface-700 text-gray-300 border border-surface-500"
-                      >
-                        {channel === 'WhatsApp' ? '📱' : channel === 'FB' ? '💙' : channel === 'IG' ? '📸' : channel === 'SMS' ? '💬' : '🌐'}
-                        {' '}{channel}
-                        <span className="text-[10px] font-bold text-accent-cyan ml-0.5">{count}</span>
-                      </span>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            {/* Vendedor con más chats en el periodo */}
-            {data!.chatKpis!.topClosers.length > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 font-medium flex items-center gap-1">
-                  <UserCircle className="w-3 h-3" /> Vendedor con más chats
-                  <HelpTooltip titulo="Vendedor con más chats" contenido="Vendedor con más chats con clientes en el periodo seleccionado. Mide volumen de conversaciones, no cierres." />
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {data!.chatKpis!.topClosers.map(({ name, count }, i) => (
-                    <span
-                      key={name}
-                      className={clsx(
-                        'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border',
-                        i === 0
-                          ? 'bg-accent-amber/20 text-accent-amber border-accent-amber/40'
-                          : 'bg-surface-700 text-gray-300 border-surface-500',
-                      )}
-                    >
-                      {i === 0 && <Trophy className="w-3 h-3" />}
-                      {name}
-                      <span className="text-[10px] font-bold opacity-80">{count}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
 
         {Object.keys(data?.tagCounts ?? {}).length > 0 && !seccionesOcultas.includes('panel_etiquetas') && (
           <section>
@@ -835,30 +697,6 @@ export default function DashboardPage() {
                     )}
                   </ul>
                 </div>
-              </div>
-            )}
-          </section>}
-          {!seccionesOcultas.includes('panel_volumen') && <section className="rounded-lg p-3 section-futuristic">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Volumen: llamadas, citas y cierres</h2>
-              <button type="button" onClick={toggleVolumen} className="p-1 rounded hover:bg-surface-600 text-gray-500 hover:text-gray-300 transition-colors" title={showVolumen ? 'Ocultar' : 'Mostrar'}>
-                {showVolumen ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-            {showVolumen && (
-              <div className="h-32">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={volumeByDay} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3a" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <Tooltip contentStyle={{ background: '#22262e', border: '1px solid #2a2f3a', borderRadius: '8px' }} />
-                    <Legend />
-                    <Bar dataKey="llamadas" name="Llamadas" fill="#4dabf7" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="citasPresentaciones" name="Citas" fill="#b24bf3" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cierres" name="Cierres" fill="#00e676" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
               </div>
             )}
           </section>}
