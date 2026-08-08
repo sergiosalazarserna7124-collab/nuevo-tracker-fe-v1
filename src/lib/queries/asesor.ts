@@ -212,7 +212,7 @@ export async function getAsesorData(
   // Mostrar agendas si hay datos, independientemente de si Fathom está configurado.
   // Las agendas pueden provenir de GHL webhooks, Twilio, u otras fuentes (no solo Fathom).
 
-  const agendaRows = await (async () => {
+  const agendaRowsRaw = await (async () => {
 
     const fechaFilterAgendas = or(
       and(isNotNull(resumenesDiariosAgendas.fecha_reunion), gte(resumenesDiariosAgendas.fecha_reunion, fromTs), lte(resumenesDiariosAgendas.fecha_reunion, toTs)),
@@ -281,22 +281,31 @@ export async function getAsesorData(
     metricasSumaMap[r.campo] = Number(r.total ?? 0);
   }
 
-  // ── Excluir leads marcados como excluido_metricas de los KPIs ─────────────
-  // Column may not exist yet — query safely with raw SQL
-  const excludedRegIds: Set<number> = await (async () => {
+  // ── Excluir leads marcados como excluido_metricas / no_trackeado de los KPIs ──
+  // Mismo criterio que dashboard.ts (descartar-lead / descarte manual) para que
+  // Rendimiento y Ejecutivo sean CONSISTENTES — incluye también las citas.
+  const { excludedRegIds, excludedContactIds } = await (async () => {
     try {
       const rows = await db.execute(sql`
-        SELECT id_registro FROM registros_de_llamada
+        SELECT id_registro, ghl_contact_id FROM registros_de_llamada
         WHERE id_cuenta = ${idCuentaStr}
-          AND excluido_metricas = true
+          AND (excluido_metricas = true OR calificacion_manual = 'no_trackeado')
       `);
-      return new Set((rows.rows as Array<{ id_registro: number }>).map((r) => r.id_registro));
+      const regs = new Set<number>();
+      const contacts = new Set<string>();
+      for (const r of rows.rows as Array<{ id_registro: number; ghl_contact_id: string | null }>) {
+        regs.add(r.id_registro);
+        if (r.ghl_contact_id?.trim()) contacts.add(r.ghl_contact_id.trim());
+      }
+      return { excludedRegIds: regs, excludedContactIds: contacts };
     } catch {
-      return new Set<number>();
+      return { excludedRegIds: new Set<number>(), excludedContactIds: new Set<string>() };
     }
   })();
   const regRowsForKpi = regRows.filter((r) => !excludedRegIds.has(r.id_registro));
   const callRowsForKpi = callRows.filter((c) => !c.id_registro || !excludedRegIds.has(c.id_registro));
+  // Citas de contactos descartados también se excluyen (consistencia con dashboard).
+  const agendaRows = agendaRowsRaw.filter((a) => !a.ghl_contact_id || !excludedContactIds.has(a.ghl_contact_id.trim()));
 
   // ── CALCULAR KPIs ─────────────────────────────────────────────────────────
   const contestadas = callRowsForKpi.filter((c) => c.tipo_evento.startsWith("efectiva_")).length;
