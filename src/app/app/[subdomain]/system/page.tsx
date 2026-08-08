@@ -1162,7 +1162,11 @@ export default function SystemPage() {
                       <Plus className="w-3 h-3" /> Añadir regla
                     </button>
                   </div>
-                  <p className="text-[11px] text-gray-500">Aplican SOLO cuando el lead está en esta etapa. Si la condición se cumple en una interacción del contacto, se ejecutan las acciones (poner etiqueta, escribir campo GHL, cambiar estado, etc.).</p>
+                  <p className="text-[11px] text-gray-500">Aplican SOLO cuando el lead está en esta etapa. Si la condición se cumple en una interacción del contacto, se ejecutan las acciones (poner etiqueta, escribir campo GHL, actualizar pipeline, etc.).</p>
+                  {/* Datalist compartido de etiquetas de GHL (autocompletar en "Poner etiqueta") */}
+                  <datalist id="ghl-tags-datalist">
+                    {ghlEtiquetas.map((t) => <option key={t} value={t} />)}
+                  </datalist>
                   {clReglas.length === 0 && <p className="text-[11px] text-gray-500 italic">Sin reglas para esta etapa. Usa “Añadir regla”.</p>}
                   <ul className="space-y-3">
                     {clReglas.map((r) => {
@@ -1235,10 +1239,17 @@ export default function SystemPage() {
                                     </select>
                                   </div>
                                   {a.tipo === 'asignar_etiqueta' && (
-                                    <div className="flex-1 min-w-[120px]">
+                                    <div className="flex-1 min-w-[160px]">
                                       <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">Etiqueta</label>
-                                      <input type="text" value={a.valor ?? ''} onChange={(e) => { const v = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''); updateAccion(ai, { valor: v }); }}
-                                        placeholder="nombre_etiqueta" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40" />
+                                      <div className="flex gap-1">
+                                        <input type="text" list="ghl-tags-datalist" value={a.valor ?? ''} onChange={(e) => { const v = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''); updateAccion(ai, { valor: v }); }}
+                                          placeholder="Busca o escribe una etiqueta" className="flex-1 min-w-0 rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40" />
+                                        <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading} title="Buscar etiquetas de GHL"
+                                          className="shrink-0 px-2 rounded-lg bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40 hover:bg-accent-cyan/30 disabled:opacity-50">
+                                          {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                                        </button>
+                                      </div>
+                                      {ghlEtiquetasLoaded && <p className="text-[9px] text-gray-500 mt-0.5">{ghlEtiquetas.length} etiqueta(s) — elige una o escribe una nueva</p>}
                                     </div>
                                   )}
                                   {a.tipo === 'escribir_campo_ghl' && (
