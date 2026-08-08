@@ -279,9 +279,19 @@ export default function SystemPage() {
   const t = useT();
   const searchParams = useSearchParams();
   const stepParam = searchParams.get('step');
-  const TOTAL_STEPS = 13;
-  const initialStep = Math.min(TOTAL_STEPS, Math.max(1, Number(stepParam) || 1));
+  // Pasos visibles tras la limpieza de 2026-08: fuera Contexto de empresa (1),
+  // Embudo IA (7), Chat Triggers (8, el emoji de delegación vive en Eval. citas),
+  // Fuente financiera (10) e Integraciones de Ads (11). Los IDs se conservan
+  // para no romper deep-links como /system?step=5.
+  const VISIBLE_STEPS = [2, 3, 4, 5, 6, 9, 12, 13];
+  const parsedStep = Number(stepParam) || 2;
+  const initialStep = VISIBLE_STEPS.includes(parsedStep) ? parsedStep : 2;
   const [currentStep, setCurrentStep] = useState(initialStep);
+  const goStep = (delta: number) =>
+    setCurrentStep((s) => {
+      const idx = VISIBLE_STEPS.indexOf(s);
+      return VISIBLE_STEPS[Math.min(VISIBLE_STEPS.length - 1, Math.max(0, idx + delta))] ?? 2;
+    });
   const [saving, setSaving] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [currentIdioma, setCurrentIdioma] = useState<Locale>('es');
@@ -831,17 +841,12 @@ export default function SystemPage() {
       <div className="p-3 md:p-4 max-w-3xl mx-auto space-y-4 text-sm min-w-0 max-w-full overflow-x-hidden">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2">
           {[
-            { id: 1, title: 'Contexto de empresa', icon: Building2, color: 'blue' },
             { id: 2, title: 'Eval. citas', icon: Video, color: 'purple' },
             { id: 3, title: 'Eval. llamadas', icon: Phone, color: 'cyan' },
             { id: 4, title: 'Reglas de etiquetas', icon: Tag, color: 'amber' },
             { id: 5, title: 'Métricas custom', icon: BarChart3, color: 'green' },
             { id: 6, title: 'Metas', icon: Target, color: 'cyan' },
-            { id: 7, title: 'Embudo IA', icon: GitBranch, color: 'purple' },
-            { id: 8, title: 'Chat Triggers', icon: MessageSquare, color: 'amber' },
             { id: 9, title: 'Motor IA', icon: Key, color: 'purple' },
-            { id: 10, title: 'Fuente financiera', icon: Database, color: 'blue' },
-            { id: 11, title: 'Integraciones de Ads', icon: BarChart3, color: 'purple' },
             { id: 12, title: 'Coach de ventas', icon: ShieldCheck, color: 'green' },
             { id: 13, title: 'Gemini Key', icon: Sparkles, color: 'purple' },
           ].map((s) => {
@@ -867,48 +872,6 @@ export default function SystemPage() {
         </div>
 
         <div className="rounded-xl p-4 min-h-[280px] section-futuristic border border-surface-500/80 shadow-[0_0_28px_-8px_rgba(0,240,255,0.06)]">
-          {currentStep === 1 && (
-            <div className="space-y-4">
-              {/* Selector de idioma */}
-              <div className="rounded-xl border border-surface-500 bg-surface-700/50 p-4">
-                <h4 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
-                  🌐 {t.sistema.idioma.titulo}
-                </h4>
-                <p className="text-xs text-gray-400 mb-3">
-                  {t.sistema.idioma.descripcion}
-                </p>
-                <div className="flex gap-3">
-                  {(['es', 'en'] as const).map((lang) => (
-                    <button
-                      key={lang}
-                      type="button"
-                      onClick={() => saveIdioma(lang)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                        currentIdioma === lang
-                          ? 'bg-accent-cyan/20 border-accent-cyan text-accent-cyan'
-                          : 'bg-surface-600 border-surface-500 text-gray-400 hover:border-gray-400'
-                      }`}
-                    >
-                      {lang === 'es' ? `🇪🇸 ${t.sistema.idioma.es}` : `🇺🇸 ${t.sistema.idioma.en}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-blue/30">
-                <div className="rounded-lg p-2 bg-accent-blue/20 border border-accent-blue/40"><Building2 className="w-5 h-5 text-accent-blue" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Prompt de contexto de empresa</h3>
-                  <p className="text-sm text-gray-400">Describe qué hace la empresa para que la IA tenga contexto.</p>
-                </div>
-              </div>
-              <textarea value={promptEmpresa} onChange={(e) => setPromptEmpresa(e.target.value)}
-                className="w-full rounded-lg bg-surface-700/80 border border-surface-500 p-3 text-sm text-white placeholder-gray-500 min-h-[180px] focus:ring-2 focus:ring-accent-blue/50 focus:border-accent-blue/50 transition-colors"
-                placeholder="Qué hace la empresa..." />
-              <p className="text-[11px] text-gray-500 mt-1">Se recomienda ser lo más completo posible para que la IA entienda tu negocio de la mejor manera.</p>
-            </div>
-          )}
-
           {currentStep === 2 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
@@ -997,6 +960,41 @@ export default function SystemPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* ── Delegación del chatbot al asesor (movido desde Chat Triggers) ── */}
+              <div className="rounded-xl border border-accent-cyan/30 bg-accent-cyan/5 p-4 space-y-4">
+                <h4 className="text-sm font-semibold text-accent-cyan flex items-center gap-2">⚡ Chatbot y delegación al asesor</h4>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 space-y-1">
+                    <span className="text-sm text-white font-medium">¿Tu equipo usa un chatbot antes de que atienda el asesor?</span>
+                    <p className="text-[11px] text-gray-500">Si el primero que responde es un bot, el Speed to Lead real se mide cuando el asesor humano toma la conversación.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setChatConfig((c) => ({ ...c, tiene_chatbot: !c.tiene_chatbot }))}
+                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${chatConfig.tiene_chatbot ? 'bg-accent-cyan' : 'bg-surface-500'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatConfig.tiene_chatbot ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                {chatConfig.tiene_chatbot && (
+                  <div className="rounded-lg bg-surface-700/60 border border-surface-500 p-3 space-y-1.5">
+                    <label className="text-xs font-medium text-gray-300 block">Emoji que usa el asesor para tomar el chat</label>
+                    <p className="text-[11px] text-gray-500">Cuando el asesor quiera tomar una conversación del chatbot, envía este emoji. El Speed to Lead se calcula desde el primer mensaje del lead hasta este emoji. Ej: ⚡ o 👋</p>
+                    <input
+                      type="text"
+                      value={chatConfig.emoji_toma_atencion}
+                      onChange={(e) => setChatConfig((c) => ({ ...c, emoji_toma_atencion: e.target.value }))}
+                      placeholder="ej: ⚡ o 👋"
+                      className="w-32 rounded-lg bg-surface-600 border border-surface-500 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40"
+                      maxLength={8}
+                    />
+                    {chatConfig.emoji_toma_atencion && (
+                      <p className="text-[11px] text-gray-500">Emoji activo: <span className="text-2xl">{chatConfig.emoji_toma_atencion}</span></p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2416,334 +2414,6 @@ export default function SystemPage() {
             </div>
           )}
 
-          {currentStep === 7 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
-                <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40">
-                  <BarChart3 className="w-5 h-5 text-accent-purple" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Sistema de Embudo</h3>
-                  <p className="text-sm text-gray-400">Define las etapas clave donde clasificas a tus leads. La IA automatiza este proceso en citas.</p>
-                </div>
-              </div>
-
-              {/* ─────────────────────────────────────────────────── */}
-              {/* ETAPAS FIJAS (5 obligatorias) */}
-              {/* ─────────────────────────────────────────────────── */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-                  🔒 Resultados de cita (la IA los determina)
-                </h4>
-                <p className="text-xs text-gray-500">Estas 3 etapas son los únicos resultados posibles que la IA puede clasificar cuando analiza una cita. No Show y Cancelada los determina el sistema automáticamente — no necesitan configuración.</p>
-                
-                <div className="grid gap-3">
-                  {embudoEtapas.filter((e) => e.es_fija && e.id !== 'no_show' && e.id !== 'cancelada').map((etapa, idx) => {
-                    const allIdx = embudoEtapas.findIndex((x) => x.id === etapa.id);
-                    return (
-                      <div key={etapa.id} className="rounded-lg p-4 bg-surface-700/50 border border-surface-600 space-y-3">
-                        {/* Encabezado: Badge + Nombre inmutable */}
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs font-bold text-gray-400 bg-surface-600 px-2 py-1 rounded">🔒</span>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-white">{etapa.nombre}</p>
-                            <p className="text-[10px] text-gray-500">ID: {etapa.id}</p>
-                          </div>
-                        </div>
-                        
-                        {/* Color editable */}
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-gray-300">Color</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={etapa.color ?? '#8b5cf6'}
-                              onChange={(e) => setEmbudoEtapas((prev) => prev.map((x, i) => i === allIdx ? { ...x, color: e.target.value } : x))}
-                              className="w-10 h-10 rounded cursor-pointer border border-surface-500"
-                            />
-                            <span className="text-xs text-gray-500">{etapa.color ?? '#8b5cf6'}</span>
-                          </div>
-                        </div>
-                        
-                        {/* Descripción para la IA */}
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-gray-300">Descripción (para la IA)</label>
-                          <textarea
-                            value={etapa.condition ?? ''}
-                            onChange={(e) => setEmbudoEtapas((prev) => prev.map((x, i) => i === allIdx ? { ...x, condition: e.target.value } : x))}
-                            placeholder="Describe qué significa esta etapa para tu negocio..."
-                            className="w-full rounded-lg bg-surface-600 border border-surface-500 px-3 py-2 text-xs text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-purple/40 resize-none"
-                            rows={3}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ─────────────────────────────────────────────────── */}
-              {/* Info: No Show y Cancelada — los maneja el sistema */}
-              <div className="rounded-lg px-4 py-3 bg-surface-800/60 border border-surface-600 flex items-start gap-3">
-                <span className="text-lg mt-0.5">⚙️</span>
-                <div>
-                  <p className="text-xs font-semibold text-gray-300">No Show y Cancelada — determinados por el sistema</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    <strong className="text-gray-400">No Show:</strong> lo marca el cron automático a las 2 AM si el lead no se presentó.<br />
-                    <strong className="text-gray-400">Cancelada:</strong> lo marca el webhook de GHL cuando el lead cancela su cita.<br />
-                    Ninguno de los dos requiere intervención de la IA ni configuración aquí.
-                  </p>
-                </div>
-              </div>
-
-              {/* TOGGLE: Cerradas cuentan como Calificadas */}
-              {/* ─────────────────────────────────────────────────── */}
-              <div className="rounded-lg p-4 bg-accent-cyan/5 border border-accent-cyan/30 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1">
-                    <label className="text-sm font-semibold text-white">¿Contar Cerradas como Calificadas?</label>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Si activas esto, los leads en la etapa "Cerrada" también contarán en tus métricas de "Leads Calificados".
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setCerradasCuentanComoCal(!cerradasCuentanComoCal)}
-                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${cerradasCuentanComoCal ? 'bg-accent-cyan' : 'bg-surface-500'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cerradasCuentanComoCal ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* ─────────────────────────────────────────────────── */}
-              {/* ETAPAS CUSTOM */}
-              {/* ─────────────────────────────────────────────────── */}
-              {embudoEtapas.filter((e) => !e.es_fija).length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-                    ✏️ Etapas Personalizadas
-                  </h4>
-                  <p className="text-xs text-gray-500">Puedes crear etapas custom. Elige si cada lead suma +1 solo la 1ª vez (Única) o cada vez que ocurra (Múltiple).</p>
-                  
-                  <div className="space-y-2">
-                    {embudoEtapas.filter((e) => !e.es_fija).map((etapa, customIdx) => {
-                      const allIdx = embudoEtapas.findIndex((x) => x.id === etapa.id);
-                      return (
-                        <div key={etapa.id} className="rounded-lg p-4 bg-surface-700/50 border border-surface-600 space-y-3">
-                          {/* Encabezado: Color + Nombre editable */}
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="color"
-                              value={etapa.color ?? '#06b6d4'}
-                              onChange={(e) => setEmbudoEtapas((prev) => prev.map((x, i) => i === allIdx ? { ...x, color: e.target.value } : x))}
-                              className="w-10 h-10 rounded cursor-pointer border border-surface-500"
-                            />
-                            <input
-                              type="text"
-                              value={etapa.nombre}
-                              onChange={(e) => setEmbudoEtapas((prev) => prev.map((x, i) => i === allIdx ? { ...x, nombre: e.target.value } : x))}
-                              placeholder="Nombre de la etapa"
-                              className="flex-1 bg-transparent text-sm font-semibold text-white placeholder-gray-500 focus:outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeEmbudoEtapa(etapa.id)}
-                              className="shrink-0 p-2 rounded text-gray-500 hover:text-red-400 hover:bg-surface-600 transition-colors"
-                              title="Eliminar etapa"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          
-                          {/* Switch Única / Múltiple */}
-                          <div className="flex items-center gap-3 pt-2 border-t border-surface-500">
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-gray-300">Modalidad de conteo</p>
-                              <p className="text-[10px] text-gray-500 mt-0.5">
-                                {etapa.es_unica === true
-                                  ? "El lead suma +1 solo la primera vez que tiene este resultado"
-                                  : "El lead suma +1 cada vez que tiene este resultado"}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setEmbudoEtapas((prev) => prev.map((x, i) => i === allIdx ? { ...x, es_unica: !x.es_unica } : x))}
-                              className={`shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors text-[10px] font-bold ${etapa.es_unica !== false ? 'bg-accent-green/50 border border-accent-green' : 'bg-accent-amber/50 border border-accent-amber'}`}
-                              title={etapa.es_unica !== false ? "Única (1ª vez)" : "Múltiple (cada vez)"}
-                            >
-                              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${etapa.es_unica !== false ? 'translate-x-4' : 'translate-x-1'}`} />
-                            </button>
-                          </div>
-                          
-                          {/* Descripción */}
-                          <div className="space-y-2">
-                            <label className="text-xs font-medium text-gray-300">Descripción (para la IA)</label>
-                            <textarea
-                              value={etapa.condition ?? ''}
-                              onChange={(e) => setEmbudoEtapas((prev) => prev.map((x, i) => i === allIdx ? { ...x, condition: e.target.value } : x))}
-                              placeholder="Describe qué significa esta etapa..."
-                              className="w-full rounded-lg bg-surface-600 border border-surface-500 px-3 py-2 text-xs text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-cyan/40 resize-none"
-                              rows={2}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Botón: Agregar etapa */}
-              <button
-                type="button"
-                onClick={addEmbudoEtapa}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface-700 border border-surface-600 text-xs text-gray-300 hover:text-white hover:border-accent-cyan/50 transition-colors"
-              >
-                <Plus className="w-4 h-4" /> Agregar etapa personalizada
-              </button>
-            </div>
-          )}
-
-
-          {currentStep === 8 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-amber/30">
-                <div className="rounded-lg p-2 bg-accent-amber/20 border border-accent-amber/40"><MessageSquare className="w-5 h-5 text-accent-amber" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">Chats: Speed to Lead e IA <span className="relative group"><HelpCircle className="w-4 h-4 text-gray-500 cursor-help" /><span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-2 rounded-lg bg-surface-900 border border-surface-500 text-xs text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 font-normal">Configura cómo se mide el Speed to Lead en chats y cuándo se ejecuta el análisis IA nocturno. La IA clasifica cada chat automáticamente igual que llamadas y citas.</span></span></h3>
-                  <p className="text-sm text-gray-400">Configuración de chatbot, Speed to Lead y análisis IA nocturno para chats.</p>
-                </div>
-              </div>
-
-              {/* ── Sección: Speed to Lead ── */}
-              <div className="rounded-xl border border-accent-cyan/30 bg-accent-cyan/5 p-4 space-y-4">
-                <h4 className="text-sm font-semibold text-accent-cyan flex items-center gap-2">⚡ Configuración de Speed to Lead</h4>
-
-                {/* Toggle chatbot */}
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm text-white font-medium">¿Tu equipo usa un chatbot antes de que atienda el asesor?</span>
-                      <span className="relative group">
-                        <HelpCircle className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                        <span className="absolute bottom-full left-0 mb-2 w-72 p-2 rounded-lg bg-surface-900 border border-surface-500 text-xs text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                          Si tienes un chatbot automático que responde primero, el Speed to Lead real es cuando el asesor humano toma la conversación. Si no tienes chatbot, se mide desde el primer mensaje del lead.
-                        </span>
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-gray-500">Actívalo si el primer que responde es un bot, no un asesor.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setChatConfig((c) => ({ ...c, tiene_chatbot: !c.tiene_chatbot }))}
-                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${chatConfig.tiene_chatbot ? 'bg-accent-cyan' : 'bg-surface-500'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatConfig.tiene_chatbot ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-
-                {chatConfig.tiene_chatbot && (
-                  <div className="rounded-lg bg-surface-700/60 border border-surface-500 p-3 space-y-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-medium text-gray-300">Emoji que usa el asesor para tomar el chat</label>
-                        <span className="relative group">
-                          <HelpCircle className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                          <span className="absolute bottom-full left-0 mb-2 w-72 p-2 rounded-lg bg-surface-900 border border-surface-500 text-xs text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                            Cuando el asesor humano quiera tomar una conversación del chatbot, debe enviar este emoji. El sistema calculará el Speed to Lead desde el primer mensaje del lead hasta este emoji. Ej: ⚡ o 👋
-                          </span>
-                        </span>
-                      </div>
-                      <input
-                        type="text"
-                        value={chatConfig.emoji_toma_atencion}
-                        onChange={(e) => setChatConfig((c) => ({ ...c, emoji_toma_atencion: e.target.value }))}
-                        placeholder="ej: ⚡ o 👋"
-                        className="w-32 rounded-lg bg-surface-600 border border-surface-500 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40"
-                        maxLength={8}
-                      />
-                      {chatConfig.emoji_toma_atencion && (
-                        <p className="text-[11px] text-gray-500">Emoji activo: <span className="text-2xl">{chatConfig.emoji_toma_atencion}</span></p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Sección: Análisis IA de chats ── */}
-              <div className="rounded-xl border border-accent-purple/30 bg-accent-purple/5 p-4 space-y-4">
-                <h4 className="text-sm font-semibold text-accent-purple flex items-center gap-2">🤖 Análisis automático de chats</h4>
-                <p className="text-sm text-gray-400">
-                  El sistema analiza tus conversaciones de chat cada noche y clasifica automáticamente cada lead en tu embudo,
-                  igual que con llamadas y citas.
-                </p>
-
-                {/* Hora del análisis */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-xs font-medium text-gray-300">Hora del análisis nocturno</label>
-                    <span className="relative group">
-                      <HelpCircle className="w-3.5 h-3.5 text-gray-500 cursor-help" />
-                      <span className="absolute bottom-full left-0 mb-2 w-60 p-2 rounded-lg bg-surface-900 border border-surface-500 text-xs text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                        El sistema analiza los chats del día anterior a esta hora.
-                      </span>
-                    </span>
-                  </div>
-                  <select
-                    value={chatAnalisisHora}
-                    onChange={(e) => setChatAnalisisHora(Number(e.target.value))}
-                    className="w-40 rounded-lg bg-surface-600 border border-surface-500 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40"
-                  >
-                    {Array.from({ length: 24 }, (_, i) => (
-                      <option key={i} value={i}>{i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i - 12}:00 PM`}</option>
-                    ))}
-                  </select>
-                  <p className="text-[11px] text-gray-500">💡 El sistema analiza los chats del día anterior a esta hora.</p>
-                </div>
-
-                {/* Botón analizar ahora */}
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={handleAnalizarChats}
-                    disabled={analizandoChats}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent-purple/20 text-accent-purple border border-accent-purple/50 hover:bg-accent-purple/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {analizandoChats ? (
-                      <>
-                        <span className="animate-spin">⏳</span> Analizando chats...
-                      </>
-                    ) : (
-                      <>▶ Analizar chats pendientes ahora</>
-                    )}
-                  </button>
-                  <p className="text-[11px] text-gray-500">ℹ️ Analiza los chats de las últimas 24h que aún no tienen clasificación. Tiempo estimado: ~2 min por cada 100 chats.</p>
-                  {analisisResult && (
-                    <div className="rounded-lg border border-accent-green/30 bg-accent-green/5 px-3 py-2 text-xs text-gray-300 space-y-0.5">
-                      <p className="text-accent-green font-semibold">✅ Análisis completado</p>
-                      <p>Procesados: <strong>{analisisResult.processed}</strong> · Actualizados: <strong>{analisisResult.updated}</strong> · Errores: <strong>{analisisResult.errors}</strong></p>
-                      <p>Costo estimado: <strong className="text-accent-amber">{analisisResult.costEstimate}</strong></p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Estimado de costos */}
-                <div className="rounded-lg border border-surface-500 bg-surface-700/40 px-3 py-2.5 text-xs text-gray-400 space-y-1">
-                  <p className="font-semibold text-gray-300">Estimado de costos</p>
-                  <p>💡 Usamos Gemini 2.5 Flash, el modelo más eficiente de Google.</p>
-                  <p>Precio: <span className="text-accent-amber">$0.30/1M tokens entrada · $2.50/1M tokens salida</span></p>
-                  <p>Estimado por chat: ~$0.0004 USD (500 tokens entrada + 100 salida)</p>
-                  <p className="text-gray-500">Los costos van directamente a tu cuenta de Google AI Studio. Sin markup.</p>
-                </div>
-
-                {/* ── Recuperar chats históricos ── */}
-                <ChatRecoverySection />
-
-              </div>
-            </div>
-          )}
-
           {currentStep === 9 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
@@ -2782,434 +2452,6 @@ export default function SystemPage() {
                   <p className="text-gray-400"><strong className="text-white">Somos transparentes contigo:</strong> solo te cobramos lo que consumes. Tu llave va directo a tu cuenta de Google AI Studio — los costos son tuyos, sin markup.</p>
                 </div>
               </div>
-            </div>
-          )}
-
-          {currentStep === 10 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-blue/30">
-                <div className="rounded-lg p-2 bg-accent-blue/20 border border-accent-blue/40"><Database className="w-5 h-5 text-accent-blue" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Fuente de datos financieros</h3>
-                  <p className="text-sm text-gray-400">Elige de dónde vienen tus métricas de facturación y cash collected.</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFuenteFinanciera('nativa')}
-                  className={`rounded-xl p-4 text-left border-2 transition-all ${
-                    fuenteFinanciera === 'nativa'
-                      ? 'border-accent-cyan bg-accent-cyan/10 shadow-[0_0_20px_-6px_rgba(0,240,255,0.3)]'
-                      : 'border-surface-500 bg-surface-700/50 hover:border-surface-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${fuenteFinanciera === 'nativa' ? 'border-accent-cyan' : 'border-gray-600'}`}>
-                      {fuenteFinanciera === 'nativa' && <div className="w-2 h-2 rounded-full bg-accent-cyan" />}
-                    </div>
-                    <span className="text-sm font-semibold text-white">Nativa con IA</span>
-                  </div>
-                  <p className="text-xs text-gray-400 ml-6">
-                    La facturación se extrae de las citas clasificadas como &quot;Cerrada&quot; en <code className="text-accent-cyan">resumenes_diarios_agendas</code>.
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFuenteFinanciera('api_externa')}
-                  className={`rounded-xl p-4 text-left border-2 transition-all ${
-                    fuenteFinanciera === 'api_externa'
-                      ? 'border-accent-purple bg-accent-purple/10 shadow-[0_0_20px_-6px_rgba(178,75,243,0.3)]'
-                      : 'border-surface-500 bg-surface-700/50 hover:border-surface-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${fuenteFinanciera === 'api_externa' ? 'border-accent-purple' : 'border-gray-600'}`}>
-                      {fuenteFinanciera === 'api_externa' && <div className="w-2 h-2 rounded-full bg-accent-purple" />}
-                    </div>
-                    <span className="text-sm font-semibold text-white">API Externa</span>
-                  </div>
-                  <p className="text-xs text-gray-400 ml-6">
-                    La facturación viene de tu sistema externo vía <code className="text-accent-purple">POST /webhooks/external-data</code>. Ideal para Stripe, CRMs, ERPs.
-                  </p>
-                </button>
-              </div>
-              <div className="rounded-lg border border-accent-blue/30 bg-accent-blue/5 px-3 py-2 text-sm text-gray-400">
-                <strong className="text-accent-blue">Nota:</strong> Este cambio afecta cómo se muestran los KPIs de ingresos en el Dashboard.
-                Consulta la sección <em>Documentación</em> en el menú lateral para configurar el webhook.
-              </div>
-              {fuenteFinanciera === 'api_externa' && (
-                <div className="rounded-lg border border-accent-amber/40 bg-accent-amber/5 px-3 py-2 text-sm text-amber-300">
-                  <strong className="text-accent-amber">⚠️ Importante sobre comisiones:</strong> Con API Externa activada, el panel ejecutivo mostrará los ingresos de tu sistema externo, pero el módulo de <strong>Comisiones</strong> siempre calcula sobre los datos nativos (llamadas y citas registradas en el sistema). Si tus cierres se registran exclusivamente vía API externa, las comisiones aparecerán en $0.
-                </div>
-              )}
-
-              {/* Toggle: Sección de Chats en Dashboard */}
-              <div className="rounded-xl border border-surface-500 bg-surface-800/60 p-4 space-y-3">
-                <div className="flex items-center gap-2 pb-2 border-b border-surface-600/50">
-                  <div className="rounded-lg p-1.5 bg-accent-cyan/20 border border-accent-cyan/40">
-                    <MessageSquare className="w-4 h-4 text-accent-cyan" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-white">Visibilidad de secciones</h4>
-                    <p className="text-xs text-gray-400">Activa o desactiva secciones del panel ejecutivo.</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSeccionChatsDashboard((v) => !v)}
-                  className={`w-full flex items-center justify-between gap-3 rounded-xl p-3 border-2 text-left transition-all ${
-                    seccionChatsDashboard
-                      ? 'border-accent-cyan bg-accent-cyan/10 shadow-[0_0_16px_-6px_rgba(0,240,255,0.25)]'
-                      : 'border-surface-500 bg-surface-700/50 hover:border-surface-400'
-                  }`}
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-white">💬 Mostrar sección de Chats en Dashboard</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Muestra un resumen de conversaciones de chat en el panel ejecutivo.</p>
-                  </div>
-                  <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${seccionChatsDashboard ? 'bg-accent-cyan' : 'bg-surface-600'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${seccionChatsDashboard ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 11 && (
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
-                <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40"><BarChart3 className="w-5 h-5 text-accent-purple" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">📊 Integraciones de Ads</h3>
-                  <p className="text-sm text-gray-400">Conecta tus plataformas de publicidad para ver el retorno de inversión real de cada campaña.</p>
-                </div>
-              </div>
-
-              {/* Meta Ads */}
-              <div className="rounded-xl border border-surface-500 bg-surface-800/60 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">📘</span>
-                    <span className="text-sm font-semibold text-white">Meta Ads</span>
-                  </div>
-                  <button type="button" onClick={() => setMetaAdsActivo(v => !v)}
-                    className={`w-10 h-6 rounded-full transition-colors relative ${metaAdsActivo ? 'bg-accent-blue' : 'bg-surface-600'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${metaAdsActivo ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-                {metaAdsActivo && (
-                  <div className="space-y-3 pt-2 border-t border-surface-600">
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Ad Account ID
-                        <span className="ml-1 text-accent-cyan">💡 Lo encuentras en Meta Business Suite → Configuración → Cuentas de anuncios</span>
-                      </label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-blue"
-                        placeholder="act_123456789" value={metaAdAccountId} onChange={e => setMetaAdAccountId(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Access Token
-                        <span className="ml-1 text-accent-cyan">💡 Genera un token en developers.facebook.com con permisos ads_read</span>
-                      </label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-blue"
-                        type="password" placeholder="EAAxxxxx..." value={metaAccessToken} onChange={e => setMetaAccessToken(e.target.value)} />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button type="button"
-                        onClick={async () => {
-                          setMetaVerificando(true); setMetaVerificado(null);
-                          try {
-                            const url = `https://graph.facebook.com/v19.0/act_${metaAdAccountId}?access_token=${metaAccessToken}`;
-                            const res = await fetch(url);
-                            setMetaVerificado(res.ok);
-                          } catch { setMetaVerificado(false); }
-                          setMetaVerificando(false);
-                        }}
-                        disabled={!metaAdAccountId || !metaAccessToken || metaVerificando}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-blue/20 border border-accent-blue/40 text-accent-blue text-xs font-medium hover:bg-accent-blue/30 disabled:opacity-50 transition-all">
-                        {metaVerificando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🔍'} Verificar conexión
-                      </button>
-                      {metaVerificado === true && <span className="text-xs text-accent-green">✅ Conexión verificada</span>}
-                      {metaVerificado === false && <span className="text-xs text-red-400">❌ Error de conexión</span>}
-                    </div>
-                    {/* Pixel ID */}
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Pixel ID <span className="text-gray-600">(opcional — para métricas de conversión)</span></label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-blue"
-                        placeholder="1234567890" value={metaPixelId} onChange={e => setMetaPixelId(e.target.value)} />
-                    </div>
-
-                    {/* Selector de campos extra */}
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-2">Métricas adicionales a sincronizar</label>
-                      <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
-                        {[
-                          { key: "reach", label: "Alcance único" },
-                          { key: "frequency", label: "Frecuencia" },
-                          { key: "actions", label: "Acciones (leads, compras, etc.)" },
-                          { key: "action_values", label: "Valor de acciones ($)" },
-                          { key: "cost_per_action_type", label: "Costo por acción" },
-                          { key: "video_play_actions", label: "Reproducciones de video" },
-                          { key: "video_thruplay_watched_actions", label: "Video visto al 100%" },
-                          { key: "video_30_sec_watched_actions", label: "Video visto 30 seg" },
-                          { key: "outbound_clicks", label: "Clicks salientes" },
-                          { key: "inline_link_clicks", label: "Clicks en enlace" },
-                          { key: "post_reactions", label: "Reacciones" },
-                          { key: "post_comments", label: "Comentarios" },
-                          { key: "post_shares", label: "Compartidos" },
-                          { key: "unique_clicks", label: "Clicks únicos" },
-                          { key: "unique_ctr", label: "CTR único (%)" },
-                          { key: "cost_per_unique_click", label: "Costo por click único" },
-                        ].map(({ key, label }) => (
-                          <label key={key} className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 hover:text-white">
-                            <input
-                              type="checkbox"
-                              checked={metaCamposExtra.includes(key)}
-                              onChange={(e) => setMetaCamposExtra(prev =>
-                                e.target.checked ? [...prev, key] : prev.filter(k => k !== key)
-                              )}
-                              className="accent-blue-500 w-3.5 h-3.5"
-                            />
-                            <span>{label}</span>
-                            <code className="text-[10px] text-gray-600 ml-auto">{key}</code>
-                          </label>
-                        ))}
-                      </div>
-                      {metaCamposExtra.length > 0 && (
-                        <p className="text-[10px] text-accent-blue mt-1.5">
-                          ✓ {metaCamposExtra.length} campo(s) extra seleccionado(s) — se guardarán en "datos_extra" por campaña
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Hora de sincronización diaria</label>
-                      <select className="bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-blue"
-                        value={metaCronHora} onChange={e => setMetaCronHora(Number(e.target.value))}>
-                        {Array.from({ length: 24 }, (_, i) => (
-                          <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Google Ads */}
-              <div className="rounded-xl border border-surface-500 bg-surface-800/60 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🔍</span>
-                    <span className="text-sm font-semibold text-white">Google Ads</span>
-                  </div>
-                  <button type="button" onClick={() => setGoogleAdsActivo(v => !v)}
-                    className={`w-10 h-6 rounded-full transition-colors relative ${googleAdsActivo ? 'bg-accent-green' : 'bg-surface-600'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${googleAdsActivo ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-                {googleAdsActivo && (
-                  <div className="space-y-3 pt-2 border-t border-surface-600">
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Customer ID
-                        <span className="ml-1 text-accent-cyan">💡 El número de 10 dígitos de tu cuenta en ads.google.com</span>
-                      </label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-green"
-                        placeholder="123-456-7890" value={googleCustomerId} onChange={e => setGoogleCustomerId(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Developer Token</label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-green"
-                        type="password" placeholder="AbCdEfXxXx..." value={googleDeveloperToken} onChange={e => setGoogleDeveloperToken(e.target.value)} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-400 block mb-1">Client ID</label>
-                        <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-green"
-                          placeholder="xxxxx.apps.googleusercontent.com" value={googleClientId} onChange={e => setGoogleClientId(e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-400 block mb-1">Client Secret</label>
-                        <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-green"
-                          type="password" placeholder="GOCSPX-xxxxx" value={googleClientSecret} onChange={e => setGoogleClientSecret(e.target.value)} />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Refresh Token</label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-green"
-                        type="password" placeholder="1//xxxxx" value={googleRefreshToken} onChange={e => setGoogleRefreshToken(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Hora de sincronización</label>
-                      <select className="bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-green"
-                        value={googleCronHora} onChange={e => setGoogleCronHora(Number(e.target.value))}>
-                        {Array.from({ length: 24 }, (_, i) => (
-                          <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* TikTok Ads */}
-              <div className="rounded-xl border border-surface-500 bg-surface-800/60 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🎵</span>
-                    <span className="text-sm font-semibold text-white">TikTok Ads</span>
-                  </div>
-                  <button type="button" onClick={() => setTiktokAdsActivo(v => !v)}
-                    className={`w-10 h-6 rounded-full transition-colors relative ${tiktokAdsActivo ? 'bg-accent-purple' : 'bg-surface-600'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${tiktokAdsActivo ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-                {tiktokAdsActivo && (
-                  <div className="space-y-3 pt-2 border-t border-surface-600">
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Advertiser ID
-                        <span className="ml-1 text-accent-cyan">💡 Lo encuentras en TikTok Ads Manager → Configuración</span>
-                      </label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-purple"
-                        placeholder="7xxxxxxxxxxxxxxxxx" value={tiktokAdvertiserId} onChange={e => setTiktokAdvertiserId(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Access Token</label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-purple"
-                        type="password" placeholder="xxxxx" value={tiktokAccessToken} onChange={e => setTiktokAccessToken(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Hora de sincronización</label>
-                      <select className="bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-purple"
-                        value={tiktokCronHora} onChange={e => setTiktokCronHora(Number(e.target.value))}>
-                        {Array.from({ length: 24 }, (_, i) => (
-                          <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Vturb Analytics */}
-              <div className="rounded-xl border border-surface-500 bg-surface-800/60 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🎬</span>
-                    <span className="text-sm font-semibold text-white">Vturb Analytics</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30 font-medium">Nuevo</span>
-                  </div>
-                  <button type="button" onClick={() => setVturbActivo(v => !v)}
-                    className={`w-10 h-6 rounded-full transition-colors relative ${vturbActivo ? 'bg-accent-cyan' : 'bg-surface-600'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${vturbActivo ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-                {vturbActivo && (
-                  <div className="space-y-3 pt-2 border-t border-surface-600">
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">API Token de Vturb
-                        <span className="ml-1 text-accent-cyan">💡 Ve a app.vturb.net → Configurações → API → Gerar token</span>
-                      </label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-accent-cyan"
-                        type="password" placeholder="vt_..." value={vturbApiToken} onChange={e => setVturbApiToken(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Nombre del VSL/Player
-                        <span className="ml-1 text-accent-cyan">💡 El nombre exacto del player en Vturb Analytics (ej: vsl_principal)</span>
-                      </label>
-                      <input className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-cyan"
-                        placeholder="vsl_principal" value={vturbNombrePlayer} onChange={e => setVturbNombrePlayer(e.target.value)} />
-                      <p className="text-[10px] text-gray-600 mt-1">Debe coincidir exactamente con el nombre en Vturb. Puedes verlo en Analytics → Players.</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button type="button"
-                        onClick={async () => {
-                          setVturbVerificando(true); setVturbVerificado(null);
-                          try {
-                            // Llamada via proxy server-side para evitar CORS
-                            const res = await fetch("/api/data/vturb-verify", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ api_token: vturbApiToken, nombre_player: vturbNombrePlayer }),
-                            });
-                            if (res.ok) {
-                              const d = await res.json() as { ok: boolean; found?: boolean; players?: string[]; error?: string };
-                              if (d.ok) {
-                                setVturbVerificado(d.found ?? false);
-                                if (!d.found) {
-                                  const lista = (d.players ?? []).join(', ');
-                                  alert(`Player "${vturbNombrePlayer}" no encontrado.\nPlayers disponibles: ${lista}`);
-                                }
-                              } else {
-                                setVturbVerificado(false);
-                                alert(`Error: ${d.error ?? 'No se pudo conectar con Vturb'}`);
-                              }
-                            } else { setVturbVerificado(false); }
-                          } catch { setVturbVerificado(false); }
-                          setVturbVerificando(false);
-                        }}
-                        disabled={!vturbApiToken || !vturbNombrePlayer || vturbVerificando}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-cyan/20 border border-accent-cyan/40 text-accent-cyan text-xs font-medium hover:bg-accent-cyan/30 disabled:opacity-50 transition-all">
-                        {vturbVerificando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🔍'} Verificar player
-                      </button>
-                      {vturbVerificado === true && <span className="text-xs text-accent-green">✅ Player encontrado</span>}
-                      {vturbVerificado === false && <span className="text-xs text-red-400">❌ No encontrado — revisa el nombre</span>}
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Hora de sincronización diaria</label>
-                      <select className="bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-cyan"
-                        value={vturbCronHora} onChange={e => setVturbCronHora(Number(e.target.value))}>
-                        {Array.from({ length: 24 }, (_, i) => (
-                          <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="rounded-lg bg-surface-700/40 p-3 text-xs text-gray-400 space-y-1">
-                      <p>📊 <strong className="text-white">Métricas que sincroniza:</strong> Impresiones, Clicks, Play Rate, Engagement, CPM, CPC, CTR, Agendamientos</p>
-                      <p>⏰ Se sincroniza automáticamente cada día con los datos del día anterior.</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  setSaving(true);
-                  try {
-                    const adsConfig: ConfiguracionAdsLocal = {};
-                    if (metaAdsActivo || metaAdAccountId || metaAccessToken) {
-                      adsConfig.meta = { activo: metaAdsActivo, ad_account_id: metaAdAccountId, access_token: metaAccessToken, cron_hora: metaCronHora, campos_extra: metaCamposExtra, pixel_id: metaPixelId || undefined };
-                    }
-                    if (googleAdsActivo || googleCustomerId) {
-                      adsConfig.google = { activo: googleAdsActivo, customer_id: googleCustomerId, developer_token: googleDeveloperToken, client_id: googleClientId, client_secret: googleClientSecret, refresh_token: googleRefreshToken, cron_hora: googleCronHora };
-                    }
-                    if (tiktokAdsActivo || tiktokAdvertiserId) {
-                      adsConfig.tiktok = { activo: tiktokAdsActivo, advertiser_id: tiktokAdvertiserId, access_token: tiktokAccessToken, cron_hora: tiktokCronHora };
-                    }
-                    if (vturbActivo || vturbApiToken || vturbNombrePlayer) {
-                      adsConfig.vturb = { activo: vturbActivo, api_token: vturbApiToken, auth_header: vturbAuthHeader || 'x-api-token', nombre_player: vturbNombrePlayer, cron_hora: vturbCronHora };
-                    }
-                    const res = await fetch('/api/data/system-config', {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ configuracion_ads: adsConfig }),
-                    });
-                    if (res.ok) {
-                      toast.success('Configuración de Ads guardada');
-                    } else {
-                      toast.error('Error al guardar');
-                    }
-                  } catch {
-                    toast.error('Error al guardar');
-                  }
-                  setSaving(false);
-                }}
-                disabled={saving}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent-purple text-white text-sm font-semibold hover:shadow-[0_0_20px_-6px_rgba(178,75,243,0.5)] transition-all disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Guardar configuración de Ads
-              </button>
             </div>
           )}
 
@@ -3820,7 +3062,7 @@ export default function SystemPage() {
         </div>
 
         <div className="flex flex-wrap justify-between items-center gap-3 pt-2 border-t border-surface-500/80">
-          <button type="button" onClick={async () => { await handleSave(); setCurrentStep((s) => Math.max(1, s - 1)); }} disabled={currentStep === 1 || saving}
+          <button type="button" onClick={async () => { await handleSave(); goStep(-1); }} disabled={currentStep === VISIBLE_STEPS[0] || saving}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface-700/80 border border-surface-500 text-sm text-gray-300 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
             <ChevronLeft className="w-4 h-4" /> Anterior
           </button>
@@ -3830,7 +3072,7 @@ export default function SystemPage() {
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Guardar
             </button>
-            <button type="button" onClick={async () => { await handleSave(); setCurrentStep((s) => Math.min(TOTAL_STEPS, s + 1)); }} disabled={currentStep === TOTAL_STEPS || saving}
+            <button type="button" onClick={async () => { await handleSave(); goStep(1); }} disabled={currentStep === VISIBLE_STEPS[VISIBLE_STEPS.length - 1] || saving}
               className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-accent-cyan text-black text-sm font-semibold hover:shadow-[0_0_24px_-6px_rgba(0,240,255,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-all">
               Siguiente <ChevronRight className="w-4 h-4" />
             </button>
