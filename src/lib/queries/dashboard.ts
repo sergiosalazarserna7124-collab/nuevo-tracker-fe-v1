@@ -666,12 +666,13 @@ export async function getDashboard(
   const horarioLaboral = cuentaRow?.configuracion_ui?.horario_laboral ?? HORARIO_LABORAL_DEFAULT;
   const tzCuenta = cuentaRow?.zona_horaria_iana ?? null;
   const speedRows = (await db.execute(sql`
-    SELECT fecha_evento, fecha_asignacion, fecha_primera_llamada FROM registros_de_llamada
+    SELECT fecha_evento, fecha_asignacion, fecha_primera_llamada, closer_mail, nombre_closer, ghl_contact_id
+    FROM registros_de_llamada
     WHERE id_cuenta = ${idCuenta}
       AND excluido_metricas IS NOT TRUE
       AND fecha_primera_llamada IS NOT NULL
       AND fecha_primera_llamada >= ${fromDate} AND fecha_primera_llamada <= ${toDate}
-  `)).rows as Array<{ fecha_evento: string | Date | null; fecha_asignacion: string | Date | null; fecha_primera_llamada: string | Date }>;
+  `)).rows as Array<{ fecha_evento: string | Date | null; fecha_asignacion: string | Date | null; fecha_primera_llamada: string | Date; closer_mail: string | null; nombre_closer: string | null; ghl_contact_id: string | null }>;
   const generalMins: number[] = [];
   const asesorMins: number[] = [];
   for (const r of speedRows) {
@@ -740,14 +741,6 @@ export async function getDashboard(
     return "sin asignar";
   };
 
-  // Construir mapa de leads generados (nuevos contactos) por asesor
-  const newLeadsMap: Record<string, typeof filteredNewLeadEvents> = {};
-  for (const c of filteredNewLeadEvents) {
-    const key = normAdvisorKey(c.closer_mail, c.nombre_closer);
-    if (!newLeadsMap[key]) newLeadsMap[key] = [];
-    newLeadsMap[key].push(c);
-  }
-
   // ── Datos extra del ranking: leads por CHAT y dinero entrante ──────────────
   // Un lead atendido solo por chat también es un "lead trabajado" del asesor.
   const chatAdvisorRows = (await db.execute(sql`
@@ -767,6 +760,7 @@ export async function getDashboard(
     SELECT o.ghl_contact_id,
            COALESCE(SUM(CASE WHEN o.apartado AND o.fecha_apartado BETWEEN ${fromDate} AND ${toDate} THEN o.monto_apartado ELSE 0 END), 0)
          + COALESCE(SUM(CASE WHEN o.venta AND o.fecha_venta BETWEEN ${fromDate} AND ${toDate} THEN COALESCE(o.monto_venta, o.monetary_value) ELSE 0 END), 0) AS dinero,
+           SUM(CASE WHEN o.venta AND o.fecha_venta BETWEEN ${fromDate} AND ${toDate} THEN 1 ELSE 0 END)::int AS ventas_n,
            MAX(r.closer_mail) AS closer_mail, MAX(r.nombre_closer) AS nombre_closer
     FROM oportunidades o
     LEFT JOIN registros_de_llamada r
@@ -775,7 +769,7 @@ export async function getDashboard(
       AND ((o.apartado AND o.fecha_apartado BETWEEN ${fromDate} AND ${toDate})
         OR (o.venta AND o.fecha_venta BETWEEN ${fromDate} AND ${toDate}))
     GROUP BY o.ghl_contact_id
-  `)).rows as Array<{ ghl_contact_id: string; dinero: string | number; closer_mail: string | null; nombre_closer: string | null }>;
+  `)).rows as Array<{ ghl_contact_id: string; dinero: string | number; ventas_n: string | number; closer_mail: string | null; nombre_closer: string | null }>;
 
   const chatLeadsByAdvisor: Record<string, Map<string, { nombre: string | null; email: null; telefono: null; ultimaActividad: string | null }>> = {};
   for (const ch of chatAdvisorRows) {
@@ -786,12 +780,28 @@ export async function getDashboard(
     mapa.set(ch.id_lead.trim(), { nombre: ch.nombre_lead, email: null, telefono: null, ultimaActividad: toDateString(ch.ts) });
     chatLeadsByAdvisor[key] = mapa;
   }
-  const dineroByAdvisor: Record<string, Array<{ contactId: string; monto: number }>> = {};
+  const dineroByAdvisor: Record<string, Array<{ contactId: string; monto: number; ventas: number }>> = {};
   for (const d of dineroRows) {
     if (esNoTrackeado(d.ghl_contact_id)) continue;
     const monto = Number(d.dinero) || 0;
     const key = normAdvisorKey(d.closer_mail, d.nombre_closer);
-    (dineroByAdvisor[key] ??= []).push({ contactId: d.ghl_contact_id.trim(), monto });
+    (dineroByAdvisor[key] ??= []).push({ contactId: d.ghl_contact_id.trim(), monto, ventas: Number(d.ventas_n) || 0 });
+  }
+
+  // Speed to lead LABORAL por asesor: minutos en horario laboral desde la
+  // asignación (o creación) del lead hasta su primera llamada.
+  const speedByAdvisor: Record<string, Array<{ contactId: string | null; mins: number }>> = {};
+  for (const r of speedRows) {
+    const asigRaw = r.fecha_asignacion ?? r.fecha_evento;
+    if (!asigRaw) continue;
+    const asig = new Date(asigRaw);
+    const call = new Date(r.fecha_primera_llamada);
+    if (call.getTime() <= asig.getTime()) continue;
+    const key = normAdvisorKey(r.closer_mail, r.nombre_closer);
+    (speedByAdvisor[key] ??= []).push({
+      contactId: r.ghl_contact_id?.trim() ?? null,
+      mins: businessMinutesBetween(asig, call, horarioLaboral, tzCuenta),
+    });
   }
 
   const advisorMap: Record<string, { calls: typeof filteredCalls; agendas: typeof filteredAgendas }> = {};
@@ -829,10 +839,19 @@ export async function getDashboard(
   const advLeadKey = (contactId?: string | null, mail?: string | null, phone?: string | null, fallback?: string): string =>
     contactId?.trim() || mail?.trim().toLowerCase() || phone?.trim() || fallback || "sin_id";
 
+  // Base GLOBAL de leads nuevos del período (sin importar a qué asesor quedó
+  // atribuido el evento de creación — los leads suelen crearse "sin asignar",
+  // lo que antes hacía que el asesor que los trabajaba los viera como
+  // "reactivados" aunque hubieran llegado hoy).
+  const globalNewLeadKeys = new Set(
+    filteredNewLeadEvents.map((nl) => advLeadKey(nl.contact_id_ghl, nl.mail_lead, nl.phone, String(nl.id))),
+  );
+
   const advisorRanking: DashboardAdvisorRow[] = Object.entries(advisorMap).map(
     ([key, { calls: ac, agendas: aa }]) => {
       const advisorChatLeads = chatLeadsByAdvisor[key] ?? new Map<string, { nombre: string | null; email: null; telefono: null; ultimaActividad: string | null }>();
       const advisorDinero = dineroByAdvisor[key] ?? [];
+      const advisorSpeeds = speedByAdvisor[key] ?? [];
       const aContestadas = ac.filter((c) => esLlamadaContestada(c.tipo_evento ?? "", c.estado_resultado)).length;
       const aLeadsContactados = new Set(
         ac
@@ -872,20 +891,6 @@ export async function getDashboard(
         aa.map((a) => agendaDedupKey(a))
       ).size;
 
-      // Leads generados: nuevos contactos del periodo asignados a este asesor
-      const advisorNewLeads = newLeadsMap[key] ?? [];
-      const uniqueNewLeadsMap = new Map<string, (typeof advisorNewLeads)[0]>();
-      for (const nl of advisorNewLeads) {
-        const leadKey = advLeadKey(nl.contact_id_ghl, nl.mail_lead, nl.phone, String(nl.id));
-        if (!uniqueNewLeadsMap.has(leadKey)) uniqueNewLeadsMap.set(leadKey, nl);
-      }
-      const leadsGeneradosDetalle = Array.from(uniqueNewLeadsMap.values()).map((nl) => ({
-        nombre: nl.nombre_lead ?? null,
-        email: nl.mail_lead ?? null,
-        telefono: nl.phone ?? null,
-        ultimaActividad: nl.ts ? toDateString(nl.ts) : null,
-      }));
-
       // Leads con actividad: leads únicos del periodo que tuvieron llamada, cita o chat
       const uniqueActivosMap = new Map<string, { nombre: string | null; email: string | null; telefono: string | null; ultimaActividad: string | null }>();
       for (const c of ac) {
@@ -915,15 +920,29 @@ export async function getDashboard(
       }
       const leadsConActividadDetalle = Array.from(uniqueActivosMap.values());
 
-      const newLeadKeys = new Set(uniqueNewLeadsMap.keys());
+      // Nuevo vs reactivado se decide con la base GLOBAL: un lead es "nuevo"
+      // si fue CREADO en el período, sin importar quién recibió el evento de
+      // creación. Reactivado = trabajado en el período pero creado antes.
+      const newLeadKeys = new Set(
+        Array.from(uniqueActivosMap.keys()).filter((k) => globalNewLeadKeys.has(k)),
+      );
+      const leadsGeneradosDetalle = Array.from(uniqueActivosMap.entries())
+        .filter(([k]) => newLeadKeys.has(k))
+        .map(([, v]) => v);
       const leadsReactivadosDetalle = Array.from(uniqueActivosMap.entries())
         .filter(([k]) => !newLeadKeys.has(k))
         .map(([, v]) => v);
 
+      // Tasas por cita (filas de agendas): con resultado = total − pendientes − canceladas
+      const citaEsCancelada = (a: (typeof aa)[0]) => (a.categoria ?? "").toLowerCase().includes("cancelad");
+      const citaEsPendiente = (a: (typeof aa)[0]) => (a.categoria ?? "").trim().toUpperCase() === "PDTE";
+      const citaEsCerrada = (a: (typeof aa)[0]) => closedSet.has((a.categoria ?? "").toLowerCase().trim());
+
       const computeFilteredMetrics = (leadKeys: Set<string>): {
         totalLeads: number; callsMade: number; contestadas: number; speedToLeadAvg: number | null;
-        meetingsBooked: number; meetingsAttended: number; revenue: number;
+        speedToLeadLaboral: number | null; meetingsBooked: number; meetingsAttended: number; revenue: number;
         cashCollected: number; dineroEntrante: number; contactRate: number; bookingRate: number;
+        tasaContestacion: number; tasaAsistencia: number; tasaCierre: number;
       } => {
         const fCalls = ac.filter((c) => {
           const lk = advLeadKey(c.contact_id_ghl, c.mail_lead, c.phone, String(c.id));
@@ -953,12 +972,18 @@ export async function getDashboard(
         const fRevenueAny = fAgendas.reduce((s, a) => s + (parseFloat(a.facturacion || "0") || 0), 0);
         const fRevenue = useExterna ? 0 : (fRevenueClosedSet > 0 ? fRevenueClosedSet : fRevenueAny);
         const fCash = useExterna ? 0 : fAgendas.reduce((s, a) => s + (parseFloat(a.cash_collected || "0") || 0), 0);
-        const fDinero = advisorDinero.filter((d) => leadKeys.has(d.contactId)).reduce((s, d) => s + d.monto, 0);
+        const fDineroEntries = advisorDinero.filter((d) => leadKeys.has(d.contactId));
+        const fDinero = fDineroEntries.reduce((s, d) => s + d.monto, 0);
+        const fVentas = fDineroEntries.reduce((s, d) => s + d.ventas, 0);
+        const fSpeedsLab = advisorSpeeds.filter((s) => s.contactId && leadKeys.has(s.contactId)).map((s) => s.mins);
+        const fBaseAsistencia = fAgendas.length - fAgendas.filter(citaEsPendiente).length - fAgendas.filter(citaEsCancelada).length;
+        const fCerradas = fAgendas.filter(citaEsCerrada).length;
         return {
           totalLeads: fLeads,
           callsMade: fCalls.length,
           contestadas: fContestadasCalls,
           speedToLeadAvg: fSpeeds.length > 0 ? fSpeeds.reduce((s, v) => s + v, 0) / fSpeeds.length : null,
+          speedToLeadLaboral: fSpeedsLab.length > 0 ? fSpeedsLab.reduce((s, v) => s + v, 0) / fSpeedsLab.length : null,
           meetingsBooked: fMeetings,
           meetingsAttended: fAttended,
           revenue: fRevenue,
@@ -966,6 +991,9 @@ export async function getDashboard(
           dineroEntrante: fDinero,
           contactRate: fLeads > 0 ? Math.min(1, fLeadsContactados / fLeads) : 0,
           bookingRate: fLeads > 0 ? Math.min(1, fMeetings / fLeads) : 0,
+          tasaContestacion: fCalls.length > 0 ? fContestadasCalls / fCalls.length : 0,
+          tasaAsistencia: fBaseAsistencia > 0 ? Math.min(1, (fAttended + fCerradas) / fBaseAsistencia) : 0,
+          tasaCierre: fAttended > 0 ? Math.min(1, fVentas / fAttended) : 0,
         };
       };
 
@@ -982,11 +1010,18 @@ export async function getDashboard(
         callsMade: ac.length,
         contestadas: aContestadas,
         speedToLeadAvg: aSpeeds.length > 0 ? aSpeeds.reduce((s, v) => s + v, 0) / aSpeeds.length : null,
+        speedToLeadLaboral: advisorSpeeds.length > 0 ? advisorSpeeds.reduce((s, v) => s + v.mins, 0) / advisorSpeeds.length : null,
         meetingsBooked: aMeetingsBooked,
         meetingsAttended: aAsistidas,
         revenue: aRevenue,
         cashCollected: aCash,
         dineroEntrante: advisorDinero.reduce((s, d) => s + d.monto, 0),
+        tasaContestacion: ac.length > 0 ? aContestadas / ac.length : 0,
+        tasaAsistencia: (() => {
+          const base = aa.length - aa.filter(citaEsPendiente).length - aa.filter(citaEsCancelada).length;
+          return base > 0 ? Math.min(1, (aAsistidas + aa.filter(citaEsCerrada).length) / base) : 0;
+        })(),
+        tasaCierre: aAsistidas > 0 ? Math.min(1, advisorDinero.reduce((s, d) => s + d.ventas, 0) / aAsistidas) : 0,
         contactRate: aLeads > 0 ? Math.min(1, aLeadsContactados / aLeads) : 0,
         bookingRate: aLeads > 0 ? Math.min(1, aMeetingsBooked / aLeads) : 0,
         metricasWebhook: webhookPorUsuario[ac[0]?.closer_mail ?? key] ?? {},

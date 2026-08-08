@@ -102,6 +102,7 @@ export function generateDashboard(): DashboardResponse {
       callsMade: calls,
       contestadas: Math.floor(calls * 0.4),
       speedToLeadAvg: rnd(2, 50) + Math.random(),
+      speedToLeadLaboral: rnd(2, 40) + Math.random(),
       meetingsBooked: booked,
       meetingsAttended: attended,
       revenue: rev,
@@ -109,6 +110,9 @@ export function generateDashboard(): DashboardResponse {
       dineroEntrante: rev,
       contactRate: pct(contestadas, callsMade),
       bookingRate: pct(booked, leads),
+      tasaContestacion: 0.4,
+      tasaAsistencia: pct(attended, booked),
+      tasaCierre: 0.3,
     };
   });
 

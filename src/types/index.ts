@@ -491,6 +491,7 @@ export interface AdvisorFilteredMetrics {
   callsMade: number;
   contestadas: number;
   speedToLeadAvg: number | null;
+  speedToLeadLaboral: number | null;
   meetingsBooked: number;
   meetingsAttended: number;
   revenue: number;
@@ -498,6 +499,9 @@ export interface AdvisorFilteredMetrics {
   dineroEntrante: number;
   contactRate: number;
   bookingRate: number;
+  tasaContestacion: number;
+  tasaAsistencia: number;
+  tasaCierre: number;
 }
 
 export interface DashboardAdvisorRow {
@@ -513,6 +517,7 @@ export interface DashboardAdvisorRow {
   callsMade: number;
   contestadas: number;
   speedToLeadAvg: number | null;
+  speedToLeadLaboral: number | null;
   meetingsBooked: number;
   meetingsAttended: number;
   revenue: number;
@@ -520,6 +525,9 @@ export interface DashboardAdvisorRow {
   dineroEntrante: number;
   contactRate: number;
   bookingRate: number;
+  tasaContestacion: number;
+  tasaAsistencia: number;
+  tasaCierre: number;
   metricasWebhook?: Record<string, number>;
   metricsNuevos?: AdvisorFilteredMetrics;
   metricsReactivados?: AdvisorFilteredMetrics;
