@@ -415,6 +415,15 @@ export interface CategoriaCita {
   prompt: string;
 }
 
+// ─── Categorías de evaluación de chats (por etiqueta del contacto) ────────────
+
+export interface CategoriaChat {
+  id: string;
+  nombre: string;
+  etiqueta: string;
+  prompt: string;
+}
+
 // ─── Closer merge rules ───────────────────────────────────────────────────────
 
 export interface CloserMergeRule {
@@ -470,6 +479,7 @@ export const cuentas = pgTable("cuentas", {
   razones_perdida_data: jsonb("razones_perdida_data").$type<RazonPerdidaEntry[]>(),
   categorias_llamadas: jsonb("categorias_llamadas").$type<CategoriaLlamada[]>(),
   categorias_citas: jsonb("categorias_citas").$type<CategoriaCita[]>(),
+  categorias_chats: jsonb("categorias_chats").$type<CategoriaChat[]>(),
   exclusiones_coach: jsonb("exclusiones_coach").$type<ExclusionesCoach>(),
   gemini_api_key: text("gemini_api_key"),
   gemini_premium_status: text("gemini_premium_status").$type<"active" | "paused_invalid_key" | "paused_quota_exceeded" | null>(),

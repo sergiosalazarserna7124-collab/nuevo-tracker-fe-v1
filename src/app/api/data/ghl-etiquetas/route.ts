@@ -37,6 +37,49 @@ async function fetchGhlTags(locationId: string, token: string): Promise<string[]
   }
 }
 
+/**
+ * Plan B sin scope de tags: agrega las etiquetas de los contactos de la
+ * location (el scope de contactos SÍ está concedido). Hasta 3 páginas de 100.
+ */
+async function fetchTagsFromContacts(locationId: string, token: string): Promise<string[] | null> {
+  const tags = new Set<string>();
+  let startAfterId: string | null = null;
+  try {
+    for (let page = 0; page < 3; page++) {
+      const url = new URL("https://services.leadconnectorhq.com/contacts/");
+      url.searchParams.set("locationId", locationId);
+      url.searchParams.set("limit", "100");
+      if (startAfterId) url.searchParams.set("startAfterId", startAfterId);
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token.trim()}`,
+          Version: "2021-07-28",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!res.ok) return tags.size > 0 ? [...tags] : null;
+      const data = (await res.json()) as {
+        contacts?: Array<{ id?: string; tags?: string[] }>;
+        meta?: { startAfterId?: string };
+      };
+      const contacts = data.contacts ?? [];
+      for (const ct of contacts) {
+        for (const t of ct.tags ?? []) {
+          const clean = t?.trim();
+          if (clean) tags.add(clean);
+        }
+      }
+      if (contacts.length < 100) break;
+      startAfterId = data.meta?.startAfterId ?? contacts[contacts.length - 1]?.id ?? null;
+      if (!startAfterId) break;
+    }
+  } catch {
+    /* devolver lo acumulado */
+  }
+  return tags.size > 0 ? [...tags] : null;
+}
+
 export async function GET(req: Request) {
   return withAuth(req, async (idCuenta) => {
     const [cuenta] = await db
@@ -65,6 +108,17 @@ export async function GET(req: Request) {
           return NextResponse.json({
             etiquetas: [...new Set(tags.map((t) => t.toLowerCase()))].sort(),
             fuente: "ghl",
+          });
+        }
+      }
+
+      // Sin scope de tags → agregar etiquetas desde los contactos
+      for (const token of tokens) {
+        const tags = await fetchTagsFromContacts(locationId, token);
+        if (tags) {
+          return NextResponse.json({
+            etiquetas: [...new Set(tags.map((t) => t.toLowerCase()))].sort(),
+            fuente: "contactos",
           });
         }
       }

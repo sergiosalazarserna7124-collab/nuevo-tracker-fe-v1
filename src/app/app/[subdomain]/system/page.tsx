@@ -28,7 +28,7 @@ import { getMetricasQueDependenDe, DEFAULT_METRICAS_CONFIG, DEFAULT_EMBUDO_CONFI
 import { HORARIO_LABORAL_DEFAULT, type HorarioLaboral } from '@/lib/business-hours';
 import MetricaEditSheet from '@/components/dashboard/MetricaEditSheet';
 import DashboardsManager from '@/components/dashboard/DashboardsManager';
-import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, CategoriaCita, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
+import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, CategoriaCita, CategoriaChat, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
 import ChatRecoverySection from '@/features/quick-triggers/chat-recovery/ChatRecoverySection';
 import HelpTooltip from '@/components/dashboard/HelpTooltip';
 import PremiumGate from '@/components/dashboard/PremiumGate';
@@ -180,6 +180,7 @@ interface SystemConfig {
   ghl_campos_llamadas?: { ia?: string; transcripcion?: string };
   categorias_llamadas?: CategoriaLlamada[];
   categorias_citas?: CategoriaCita[];
+  categorias_chats?: CategoriaChat[];
   secciones_ocultas?: string[];
   ranking_metrica_base?: string | null;
 }
@@ -373,6 +374,15 @@ export default function SystemPage() {
   const [ghlEtiquetasLoaded, setGhlEtiquetasLoaded] = useState(false);
   const [catEtManual, setCatEtManual] = useState(false);
   const [ccEtManual, setCcEtManual] = useState(false);
+  const [cchEtManual, setCchEtManual] = useState(false);
+  const [ghlEtiquetasOpen, setGhlEtiquetasOpen] = useState(false);
+  const [ghlEtiquetasLoading, setGhlEtiquetasLoading] = useState(false);
+  // Categorías de chats por etiqueta (prompt de análisis según etapa del contacto)
+  const [categoriasChats, setCategoriasChats] = useState<CategoriaChat[]>([]);
+  const [cchNombre, setCchNombre] = useState('');
+  const [cchEtiqueta, setCchEtiqueta] = useState('');
+  const [cchPrompt, setCchPrompt] = useState('');
+  const [cchEditId, setCchEditId] = useState<string | null>(null);
 
   // Coach de ventas state
   interface SeccionGuion {
@@ -493,6 +503,7 @@ export default function SystemPage() {
         setFuenteLlamadas((cfg as unknown as { fuente_llamadas?: string }).fuente_llamadas === 'ghl' ? 'ghl' : 'twilio');
         setCategoriasLlamadas(Array.isArray(cfg.categorias_llamadas) ? cfg.categorias_llamadas : []);
         setCategoriasCitas(Array.isArray(cfg.categorias_citas) ? cfg.categorias_citas : []);
+        setCategoriasChats(Array.isArray(cfg.categorias_chats) ? cfg.categorias_chats : []);
         setGhlLocationId((cfg as unknown as { ghl_location_id?: string }).ghl_location_id ?? '');
         if (cfg.horario_laboral && Array.isArray(cfg.horario_laboral.dias)) {
           setHorarioLaboral(cfg.horario_laboral);
@@ -647,21 +658,21 @@ export default function SystemPage() {
     }
   }, [currentStep, evalSeccion, chatCatsLoaded]);
 
-  // Cargar etiquetas de GHL al entrar al paso 1 (para los selectores)
-  useEffect(() => {
-    if (currentStep === 1 && !ghlEtiquetasLoaded) {
-      (async () => {
-        try {
-          const res = await fetch('/api/data/ghl-etiquetas');
-          if (res.ok) {
-            const d = await res.json();
-            if (Array.isArray(d.etiquetas)) setGhlEtiquetas(d.etiquetas);
-          }
-        } catch { /* noop */ }
-        setGhlEtiquetasLoaded(true);
-      })();
-    }
-  }, [currentStep, ghlEtiquetasLoaded]);
+  // Cargar etiquetas de GHL bajo demanda (botón "Elegir etiqueta"): trae la
+  // lista fresca en ese momento (API de tags o agregadas de los contactos).
+  const cargarEtiquetas = async () => {
+    setGhlEtiquetasLoading(true);
+    try {
+      const res = await fetch('/api/data/ghl-etiquetas');
+      if (res.ok) {
+        const d = await res.json();
+        if (Array.isArray(d.etiquetas)) setGhlEtiquetas(d.etiquetas);
+      }
+    } catch { /* noop */ }
+    setGhlEtiquetasLoading(false);
+    setGhlEtiquetasLoaded(true);
+    setGhlEtiquetasOpen(true);
+  };
 
   const saveChatCats = async (next: { slug: string; label: string; descripcion: string }[]) => {
     setChatCats(next);
@@ -732,6 +743,7 @@ export default function SystemPage() {
         cerradas_cuentan_como_calificadas: cerradasCuentanComoCal,
         categorias_llamadas: categoriasLlamadas,
         categorias_citas: categoriasCitas,
+        categorias_chats: categoriasChats,
         secciones_ocultas: seccionesOcultas,
         ranking_metrica_base: rankingMetricaBase,
         horario_laboral: horarioLaboral,
@@ -1057,6 +1069,83 @@ export default function SystemPage() {
                   </>
                 )}
               </div>
+
+              {/* ── Prompts por etiqueta (chats) ── */}
+              <div className="rounded-xl border border-accent-purple/30 bg-accent-purple/5 p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-accent-purple">🏷️ Prompts por etiqueta (chats)</h4>
+                <p className="text-sm text-gray-400">
+                  Cada etapa del cliente se analiza distinto: ancla una categoría a una etiqueta de GHL y los chats
+                  de los contactos con esa etiqueta se analizarán con el prompt de la categoría.
+                </p>
+                {categoriasChats.length > 0 && (
+                  <ul className="space-y-2">
+                    {categoriasChats.map((cc) => (
+                      <li key={cc.id} className="flex items-start justify-between gap-3 rounded-lg bg-surface-700/70 border border-surface-500 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-white font-medium">{cc.nombre} <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-mono">{cc.etiqueta}</span></p>
+                          <p className="text-[11px] text-gray-500 truncate max-w-xl">{cc.prompt}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button type="button" onClick={() => { setCchEditId(cc.id); setCchNombre(cc.nombre); setCchEtiqueta(cc.etiqueta); setCchPrompt(cc.prompt); }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => setCategoriasChats((prev) => prev.filter((c) => c.id !== cc.id))} className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="rounded-lg bg-surface-700/50 border border-surface-500 p-3 space-y-2">
+                  <div className="grid md:grid-cols-2 gap-2">
+                    <input type="text" value={cchNombre} onChange={(e) => setCchNombre(e.target.value)} placeholder="Nombre (ej: Lead nuevo)"
+                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
+                    {!ghlEtiquetasOpen && !cchEtManual ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
+                          {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
+                        </button>
+                        {cchEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{cchEtiqueta}</span>}
+                        <button type="button" onClick={() => setCchEtManual(true)} className="text-[10px] text-gray-500 hover:text-gray-300">✏️ escribir</button>
+                      </div>
+                    ) : ghlEtiquetas.length > 0 && !cchEtManual ? (
+                      <select
+                        value={ghlEtiquetas.includes(cchEtiqueta.trim().toLowerCase()) ? cchEtiqueta.trim().toLowerCase() : ''}
+                        onChange={(e) => { if (e.target.value === '__manual__') { setCchEtManual(true); } else { setCchEtiqueta(e.target.value); } }}
+                        className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
+                        <option value="">Selecciona la etiqueta GHL…</option>
+                        {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
+                        <option value="__manual__">✏️ Otra — escribir manualmente</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input type="text" value={cchEtiqueta} onChange={(e) => setCchEtiqueta(e.target.value)} placeholder="Etiqueta GHL (ej: lead nuevo)"
+                          className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
+                        {ghlEtiquetas.length > 0 && (
+                          <button type="button" onClick={() => setCchEtManual(false)} className="text-[10px] text-gray-500 hover:text-gray-300 whitespace-nowrap">↩ lista</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <textarea value={cchPrompt} onChange={(e) => setCchPrompt(e.target.value)} placeholder="Prompt: cómo analizar los chats de este tipo de contacto..."
+                    className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[70px] focus:ring-2 focus:ring-accent-purple/40" />
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => {
+                      if (!cchNombre.trim() || !cchEtiqueta.trim() || !cchPrompt.trim()) { toast.error('Nombre, etiqueta y prompt son obligatorios'); return; }
+                      if (cchEditId) {
+                        setCategoriasChats((prev) => prev.map((c) => c.id === cchEditId ? { ...c, nombre: cchNombre.trim(), etiqueta: cchEtiqueta.trim(), prompt: cchPrompt.trim() } : c));
+                      } else {
+                        setCategoriasChats((prev) => [...prev, { id: `chat-${Date.now()}`, nombre: cchNombre.trim(), etiqueta: cchEtiqueta.trim(), prompt: cchPrompt.trim() }]);
+                      }
+                      setCchEditId(null); setCchNombre(''); setCchEtiqueta(''); setCchPrompt('');
+                    }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30">
+                      <Plus className="w-3.5 h-3.5" /> {cchEditId ? 'Guardar cambios' : 'Añadir categoría'}
+                    </button>
+                    {cchEditId && (
+                      <button type="button" onClick={() => { setCchEditId(null); setCchNombre(''); setCchEtiqueta(''); setCchPrompt(''); }} className="text-xs text-gray-500 hover:text-gray-300">Cancelar</button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-500">Recuerda dar “Guardar” abajo para aplicar los cambios.</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1101,53 +1190,6 @@ export default function SystemPage() {
                   </button>
                 </div>
 
-                {/* Toggle: Transcripción completa */}
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 space-y-1">
-                    <span className="text-sm text-white font-medium">Nota con transcripción completa</span>
-                    <p className="text-[11px] text-gray-500">
-                      Guarda el texto completo de la cita en GHL. <span className="text-accent-amber">⚠️</span> Las transcripciones largas (&gt;65k caracteres) pueden fallar por límite de GHL. Recomendado solo si realmente lo necesitas.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setGhlNotasTranscripcion((v) => !v)}
-                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${ghlNotasTranscripcion ? 'bg-accent-green' : 'bg-surface-500'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasTranscripcion ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-
-                {/* ── Completar campo personalizado de GHL ── */}
-                <div className="pt-3 mt-1 border-t border-accent-amber/20 space-y-3">
-                  <div className="space-y-1">
-                    <span className="text-sm text-white font-medium">Completar campo personalizado de GHL</span>
-                    <p className="text-[11px] text-gray-500">
-                      Además de la nota, el sistema puede escribir el contenido en un campo personalizado (custom field) de GHL.
-                      Pega la <span className="text-accent-amber">key/id</span> del campo (ej. <code className="text-gray-300">contact.transcripcion</code>). Déjalo vacío para no escribir.
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-gray-400">Campo para el resumen / análisis IA</label>
-                    <input
-                      type="text"
-                      value={ghlCampoIa}
-                      onChange={(e) => setGhlCampoIa(e.target.value)}
-                      placeholder="ej. contact.resumen_videollamada"
-                      className="w-full rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-amber/40 focus:border-accent-amber/40 transition-colors font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-gray-400">Campo para la transcripción completa</label>
-                    <input
-                      type="text"
-                      value={ghlCampoTranscripcion}
-                      onChange={(e) => setGhlCampoTranscripcion(e.target.value)}
-                      placeholder="ej. contact.transcripcion"
-                      className="w-full rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-amber/40 focus:border-accent-amber/40 transition-colors font-mono"
-                    />
-                  </div>
-                </div>
               </div>
 
               {/* ── Categorías de citas ancladas a etiqueta GHL ── */}
@@ -1178,7 +1220,16 @@ export default function SystemPage() {
                   <div className="grid md:grid-cols-2 gap-2">
                     <input type="text" value={ccNombre} onChange={(e) => setCcNombre(e.target.value)} placeholder="Nombre (ej: Lead nuevo)"
                       className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                    {ghlEtiquetas.length > 0 && !ccEtManual ? (
+                    {!ghlEtiquetasOpen && !ccEtManual ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
+                          {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
+                        </button>
+                        {ccEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{ccEtiqueta}</span>}
+                        <button type="button" onClick={() => setCcEtManual(true)} className="text-[10px] text-gray-500 hover:text-gray-300">✏️ escribir</button>
+                      </div>
+                    ) : ghlEtiquetas.length > 0 && !ccEtManual ? (
                       <select
                         value={ghlEtiquetas.includes(ccEtiqueta.trim().toLowerCase()) ? ccEtiqueta.trim().toLowerCase() : ''}
                         onChange={(e) => { if (e.target.value === '__manual__') { setCcEtManual(true); } else { setCcEtiqueta(e.target.value); } }}
@@ -1264,48 +1315,6 @@ export default function SystemPage() {
                   >
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasLlamadasIa ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
-                </div>
-                {/* Toggle: Transcripción completa */}
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-white font-medium">Nota con transcripción completa</span>
-                  <button
-                    type="button"
-                    onClick={() => setGhlNotasLlamadasTranscripcion((v) => !v)}
-                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${ghlNotasLlamadasTranscripcion ? 'bg-accent-green' : 'bg-surface-500'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasLlamadasTranscripcion ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-
-                {/* ── Completar campo personalizado de GHL ── */}
-                <div className="pt-3 mt-1 border-t border-accent-amber/20 space-y-3">
-                  <div className="space-y-1">
-                    <span className="text-sm text-white font-medium">Completar campo personalizado de GHL</span>
-                    <p className="text-[11px] text-gray-500">
-                      Además de la nota, el sistema puede escribir el contenido en un campo personalizado (custom field) de GHL.
-                      Pega la <span className="text-accent-amber">key/id</span> del campo (ej. <code className="text-gray-300">contact.transcripcion</code>). Déjalo vacío para no escribir.
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-gray-400">Campo para el análisis IA</label>
-                    <input
-                      type="text"
-                      value={ghlCampoLlamadasIa}
-                      onChange={(e) => setGhlCampoLlamadasIa(e.target.value)}
-                      placeholder="ej. contact.resumen_llamada"
-                      className="w-full rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-amber/40 focus:border-accent-amber/40 transition-colors font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-gray-400">Campo para la transcripción completa</label>
-                    <input
-                      type="text"
-                      value={ghlCampoLlamadasTranscripcion}
-                      onChange={(e) => setGhlCampoLlamadasTranscripcion(e.target.value)}
-                      placeholder="ej. contact.transcripcion"
-                      className="w-full rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-accent-amber/40 focus:border-accent-amber/40 transition-colors font-mono"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -1434,7 +1443,16 @@ export default function SystemPage() {
                         <label className="block text-[11px] font-medium text-accent-purple">Etiqueta de GHL (ancla de la categoría)</label>
                         <HelpTooltip titulo="Etiqueta" contenido="Si el CONTACTO tiene esta etiqueta en GHL (ej. lead nuevo, lead perfilado, lead agendado), sus llamadas se evalúan con el prompt de esta categoría. Tiene prioridad sobre cualquier otra selección." />
                       </div>
-                      {ghlEtiquetas.length > 0 && !catEtManual ? (
+                      {!ghlEtiquetasOpen && !catEtManual ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
+                            {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
+                          </button>
+                          {catEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{catEtiqueta}</span>}
+                          <button type="button" onClick={() => setCatEtManual(true)} className="text-[10px] text-gray-500 hover:text-gray-300">✏️ escribir</button>
+                        </div>
+                      ) : ghlEtiquetas.length > 0 && !catEtManual ? (
                         <select
                           value={ghlEtiquetas.includes(catEtiqueta.trim().toLowerCase()) ? catEtiqueta.trim().toLowerCase() : ''}
                           onChange={(e) => { if (e.target.value === '__manual__') { setCatEtManual(true); } else { setCatEtiqueta(e.target.value); } }}
