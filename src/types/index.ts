@@ -711,7 +711,8 @@ export interface AsesorLeadCRM {
   estadoNormalizado: 'pendiente' | 'no_contesto' | 'buzon' | 'seguimiento' | 'interesado' | 'programado' | 'calificada' | 'no_calificada' | 'cerrada' | 'no_interesado' | 'otro';
   intentosContacto: number;
   speedToLead: string;
-  notasLlamadas: { date: string; text: string }[];
+  // Cada llamada individual del lead con su resultado (para filtrar en el detalle).
+  notasLlamadas: { date: string; text: string; estado?: string; categoria?: string }[];
   leadNote: string | null;
   excluido: boolean;
 }

@@ -713,7 +713,7 @@ const CANAL_META: Record<Interaccion["canal"], { icon: typeof Phone; color: stri
 
 function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; data: AsesorResponse; onBack: () => void }) {
   const [canal, setCanal] = useState<CanalFiltro>("todas");
-  const [citaCat, setCitaCat] = useState<string>("todas");
+  const [subCat, setSubCat] = useState<string>("todas");
 
   const interacciones = useMemo(() => {
     const le = lead.email?.trim().toLowerCase() ?? null;
@@ -726,7 +726,7 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
     };
     const out: Interaccion[] = [];
     for (const n of lead.notasLlamadas) {
-      out.push({ canal: "llamada", date: n.date, label: estadoLabel(lead.estadoNormalizado), texto: n.text || "Sin análisis" });
+      out.push({ canal: "llamada", date: n.date, label: n.estado ?? estadoLabel(lead.estadoNormalizado), texto: n.text || "Sin análisis", categoria: n.categoria ?? "otro" });
     }
     for (const c of data.chats.filter((c) => matchLead(c.leadEmail, c.leadName, null))) {
       const ultimo = c.messages[c.messages.length - 1];
@@ -745,7 +745,15 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
     cita: interacciones.filter((i) => i.canal === "cita").length,
   }), [interacciones]);
 
-  const citaCats = useMemo(() => Array.from(new Set(interacciones.filter((i) => i.canal === "cita" && i.categoria).map((i) => i.categoria as string))), [interacciones]);
+  // Sub-categorías del canal activo (citas: pendiente/asistio/…; llamadas: contestada/no_contesto/…)
+  const subCats = useMemo(() => {
+    if (canal !== "cita" && canal !== "llamada") return [] as { cat: string; label: string }[];
+    const seen = new Map<string, string>();
+    for (const i of interacciones) {
+      if (i.canal === canal && i.categoria) seen.set(i.categoria, canal === "cita" ? categoriaLabel(i.categoria) : i.label);
+    }
+    return [...seen.entries()].map(([cat, label]) => ({ cat, label }));
+  }, [interacciones, canal]);
   const llegada = useMemo(() => {
     const fechas = interacciones.map((i) => i.date).filter(Boolean) as string[];
     return fechas.length ? fechas.reduce((min, d) => (new Date(d) < new Date(min) ? d : min)) : null;
@@ -753,7 +761,7 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
 
   const filtradas = interacciones.filter((i) => {
     if (canal !== "todas" && i.canal !== canal) return false;
-    if (canal === "cita" && citaCat !== "todas" && i.categoria !== citaCat) return false;
+    if ((canal === "cita" || canal === "llamada") && subCat !== "todas" && i.categoria !== subCat) return false;
     return true;
   });
 
@@ -785,19 +793,19 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
       {/* Filtros por canal */}
       <div className="flex flex-wrap gap-1.5 mb-2">
         {([["todas", "Todas"], ["llamada", "Llamadas"], ["chat", "Chats"], ["cita", "Citas"]] as [CanalFiltro, string][]).map(([k, label]) => (
-          <button key={k} type="button" onClick={() => { setCanal(k); setCitaCat("todas"); }}
+          <button key={k} type="button" onClick={() => { setCanal(k); setSubCat("todas"); }}
             className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${canal === k ? "bg-accent-cyan/20 text-accent-cyan border-accent-cyan/40" : "bg-surface-700 text-gray-400 border-surface-500 hover:border-gray-400"}`}>
             {label} <span className="opacity-70">{counts[k]}</span>
           </button>
         ))}
       </div>
 
-      {/* Sub-filtro de citas por categoría */}
-      {canal === "cita" && citaCats.length > 0 && (
+      {/* Sub-filtro por estado del canal activo (citas o llamadas) */}
+      {subCats.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
-          <button type="button" onClick={() => setCitaCat("todas")} className={`px-2 py-0.5 rounded text-[11px] border ${citaCat === "todas" ? "bg-accent-purple/20 text-accent-purple border-accent-purple/40" : "bg-surface-700 text-gray-400 border-surface-500"}`}>Todas</button>
-          {citaCats.map((c) => (
-            <button key={c} type="button" onClick={() => setCitaCat(c)} className={`px-2 py-0.5 rounded text-[11px] border ${citaCat === c ? "bg-accent-purple/20 text-accent-purple border-accent-purple/40" : "bg-surface-700 text-gray-400 border-surface-500"}`}>{categoriaLabel(c)}</button>
+          <button type="button" onClick={() => setSubCat("todas")} className={`px-2 py-0.5 rounded text-[11px] border ${subCat === "todas" ? "bg-accent-purple/20 text-accent-purple border-accent-purple/40" : "bg-surface-700 text-gray-400 border-surface-500"}`}>Todas</button>
+          {subCats.map(({ cat, label }) => (
+            <button key={cat} type="button" onClick={() => setSubCat(cat)} className={`px-2 py-0.5 rounded text-[11px] border ${subCat === cat ? "bg-accent-purple/20 text-accent-purple border-accent-purple/40" : "bg-surface-700 text-gray-400 border-surface-500"}`}>{label}</button>
           ))}
         </div>
       )}

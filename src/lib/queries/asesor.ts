@@ -379,6 +379,37 @@ export async function getAsesorData(
     }
   }
 
+  // ── Historial de llamadas individuales por lead (log_llamadas), con resultado ──
+  type LlamadaItem = AsesorLeadCRM["notasLlamadas"][number];
+  const labelLlamada = (tipo: string | null, estado: string | null): { estado: string; categoria: string } => {
+    const t = (tipo ?? "").toLowerCase();
+    if (t.startsWith("efectiva") || t === "voz_callai" || (estado ?? "").toLowerCase() === "completed") return { estado: "Contestada", categoria: "contestada" };
+    if (t.includes("no_contesto") || t.includes("no-answer") || t === "busy") return { estado: "No contestó", categoria: "no_contesto" };
+    if (t.includes("buzon") || t.includes("voicemail")) return { estado: "Buzón", categoria: "buzon" };
+    if (t.includes("fallida") || t === "failed") return { estado: "Fallida", categoria: "fallida" };
+    return { estado: estado ?? tipo ?? "—", categoria: "otro" };
+  };
+  const callsByEmail: Record<string, LlamadaItem[]> = {};
+  const callsByPhone: Record<string, LlamadaItem[]> = {};
+  const callsByContact: Record<string, LlamadaItem[]> = {};
+  for (const c of callRows) {
+    const lbl = labelLlamada(c.tipo_evento, c.estado_resultado);
+    const item: LlamadaItem = { date: c.ts?.toISOString() ?? "", text: c.ia_descripcion ?? "", estado: lbl.estado, categoria: lbl.categoria };
+    const em = c.mail_lead?.trim().toLowerCase();
+    const ph = c.phone?.trim();
+    const ct = c.contact_id_ghl?.trim();
+    if (em) (callsByEmail[em] ??= []).push(item);
+    if (ph) (callsByPhone[ph] ??= []).push(item);
+    if (ct) (callsByContact[ct] ??= []).push(item);
+  }
+  const collectCalls = (email?: string | null, phone?: string | null, contact?: string | null): LlamadaItem[] => {
+    const set = new Set<LlamadaItem>();
+    const em = email?.trim().toLowerCase(); if (em) callsByEmail[em]?.forEach((x) => set.add(x));
+    const ph = phone?.trim(); if (ph) callsByPhone[ph]?.forEach((x) => set.add(x));
+    const ct = contact?.trim(); if (ct) callsByContact[ct]?.forEach((x) => set.add(x));
+    return [...set].sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  };
+
   const leadMap: Record<string, AsesorLeadCRM> = {};
   for (const r of regRows) {
     // Normalizar a lowercase para que "Juan@mail.com" y "juan@mail.com" no generen dos filas.
@@ -386,8 +417,9 @@ export async function getAsesorData(
     const key = r.mail_lead?.trim().toLowerCase() || r.phone_raw_format?.trim() || String(r.id_registro);
     if (leadMap[key]) continue;
 
-    const notasArr: { date: string; text: string }[] = [];
-    if (r.iadescripcion?.trim()) {
+    const contactId = ghlContactMap[r.id_registro] ?? r.ghl_contact_id ?? null;
+    const notasArr: LlamadaItem[] = collectCalls(r.mail_lead, r.phone_raw_format ?? phoneFromCallsMap[r.id_registro], contactId);
+    if (notasArr.length === 0 && r.iadescripcion?.trim()) {
       notasArr.push({ date: r.fecha_evento?.toISOString() ?? "", text: r.iadescripcion });
     }
 
