@@ -169,6 +169,25 @@ export async function getVideollamadas(
       )),
   ]);
 
+  // Contactos descartados (excluido_metricas / no_trackeado): se excluyen igual
+  // que en el dashboard Ejecutivo, salvo que se pida "Mostrar excluidas".
+  const excludedContactIds = new Set<string>();
+  if (!includeExcluded) {
+    try {
+      const ex = await db.execute(sql`
+        SELECT DISTINCT ghl_contact_id FROM registros_de_llamada
+        WHERE id_cuenta = ${String(idCuenta)}
+          AND ghl_contact_id IS NOT NULL
+          AND (excluido_metricas = true OR calificacion_manual = 'no_trackeado')`);
+      for (const r of ex.rows as Array<{ ghl_contact_id: string | null }>) {
+        if (r.ghl_contact_id?.trim()) excludedContactIds.add(r.ghl_contact_id.trim());
+      }
+    } catch { /* columna puede no existir en algún entorno */ }
+  }
+  const rowsFiltradas = excludedContactIds.size === 0
+    ? rows
+    : rows.filter((r) => !r.ghl_contact_id || !excludedContactIds.has(r.ghl_contact_id.trim()));
+
   // AUT-603: Build set of lead keys with effective calls for real-interaction check
   const effectiveCallLeadKeys = new Set<string>();
   for (const c of effectiveCalls) {
@@ -191,7 +210,7 @@ export async function getVideollamadas(
     return false;
   };
 
-  const registros: ApiVideollamada[] = rows.map((r) => {
+  const registros: ApiVideollamada[] = rowsFiltradas.map((r) => {
     const m = mapCategoria(r.categoria, embudo);
     const realInteraction = rowHasRealInteraction(r);
     return {
