@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import PageHeader from "@/components/dashboard/PageHeader";
 import HelpTooltip from "@/components/dashboard/HelpTooltip";
 import DocumentacionContent from "@/components/dashboard/DocumentacionContent";
-import { UserPlus, Shield, Crown, Users, X, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle, Lock, Eye, EyeOff } from "lucide-react";
+import { UserPlus, Shield, Crown, Users, X, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle, Lock, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useUserFilter } from "@/contexts/UserFilterContext";
 import { canManageUsers, canManageRoles, canManageSystem } from "@/lib/permisos";
 import { PERMISOS_DISPONIBLES, type PermisoId } from "@/lib/permisos";
@@ -271,12 +271,31 @@ export default function ConfiguracionPage() {
   const loadUsers = useCallback(async () => {
     if (!puedeUsuarios) return;
     try {
-      // Sincronizar contra GHL antes de listar: la lista es un espejo de GHL
-      await fetch("/api/data/usuarios/sync", { method: "POST" }).catch(() => {});
+      // Solo listar (NO sincroniza): la sincronización con GHL es manual (botón).
       const res = await fetch("/api/data/usuarios");
       if (res.ok) setUsers(await res.json());
     } catch { /* ignore */ }
   }, [puedeUsuarios]);
+
+  // Sincronización manual contra GHL (trae usuarios con su rol admin/usuario).
+  const [sincronizandoUsuarios, setSincronizandoUsuarios] = useState(false);
+  const sincronizarUsuarios = async () => {
+    setSincronizandoUsuarios(true);
+    try {
+      const res = await fetch("/api/data/usuarios/sync", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (data?.skipped || data?.ok === false) {
+        toast.warning(data?.reason ?? "No se pudo sincronizar con GHL");
+      } else {
+        const n = data?.synced ?? data?.total ?? null;
+        toast.success(n != null ? `${n} usuario(s) sincronizado(s) desde GHL` : "Usuarios sincronizados desde GHL");
+      }
+      await loadUsers();
+    } catch {
+      toast.error("Error sincronizando usuarios");
+    }
+    setSincronizandoUsuarios(false);
+  };
 
   const loadRoles = useCallback(async () => {
     if (!puedeRoles) return;
@@ -571,11 +590,20 @@ export default function ConfiguracionPage() {
                 <h2 className="text-sm font-semibold text-white">Usuarios</h2>
                 <span className="px-2 py-0.5 rounded-full bg-accent-cyan/20 text-accent-cyan text-xs font-medium">{users.length}</span>
               </div>
+              <button
+                type="button"
+                onClick={sincronizarUsuarios}
+                disabled={sincronizandoUsuarios}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40 text-xs font-semibold hover:bg-accent-cyan/30 disabled:opacity-50"
+              >
+                {sincronizandoUsuarios ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                {sincronizandoUsuarios ? "Sincronizando…" : "Sincronizar con GHL"}
+              </button>
             </div>
             <div className="mb-4 rounded-lg border border-accent-cyan/30 bg-accent-cyan/10 px-4 py-3 text-sm text-gray-300">
-              <span className="font-semibold text-white">AutoKPI se sincroniza automáticamente con los usuarios de tu GHL.</span>{" "}
+              <span className="font-semibold text-white">Los usuarios se traen de tu GHL con el botón “Sincronizar con GHL”.</span>{" "}
               Aquí no se puede agregar, editar ni eliminar usuarios: agrega o quita usuarios en
-              GoHighLevel y aparecerán solos. Los admin de GHL tienen acceso total; los demás solo
+              GoHighLevel y dale a sincronizar para que aparezcan (con su rol admin o usuario). Los admin de GHL tienen acceso total; los demás solo
               ven sus propios datos. Lo único configurable aquí es la <span className="text-white font-medium">llave de Fathom</span> de
               cada usuario — sin ella no se trackean sus citas grabadas.
             </div>
