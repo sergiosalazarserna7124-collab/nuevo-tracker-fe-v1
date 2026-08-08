@@ -764,6 +764,10 @@ export interface AsesorChat {
   /** Identificador del lead en el chat (id_lead de GHL): suele ser el teléfono o el
    *  contact_id. Se usa para cruzar el chat con el lead cuando no hay email. */
   idLead: string | null;
+  /** Categoría del análisis IA nocturno (ia_categoria). */
+  iaCategoria: string | null;
+  /** Resumen IA "en qué quedó la conversación" (ia_resumen). Null si aún no se generó. */
+  iaResumen: string | null;
   asesorName: string | null;
   estado: string | null;
   fechaUltimoMensaje: string;

@@ -23,7 +23,8 @@ import {
   FileText,
   Sparkles,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 import { useApiData } from "@/hooks/useApiData";
 import HelpTooltip from "@/components/dashboard/HelpTooltip";
 import type {
@@ -726,6 +727,26 @@ const CANAL_META: Record<Interaccion["canal"], { icon: typeof Phone; color: stri
   cita: { icon: Video, color: "text-accent-purple", bg: "bg-accent-purple/20", nombre: "Cita" },
 };
 
+// Humaniza la categoría IA del chat (ia_categoria) para mostrarla como badge.
+function humanizeCategoria(cat: string | null): string | null {
+  if (!cat) return null;
+  const map: Record<string, string> = {
+    analizado_sin_categoria: "Sin categoría",
+    sin_categoria: "Sin categoría",
+  };
+  if (map[cat]) return map[cat];
+  return cat.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+// Estado derivado del chat a partir de los mensajes: quién habló de último y a quién se espera.
+function chatEstado(chat: AsesorChat): { label: string; waiting: "lead" | "asesor" | null; ultimaFecha: string | null } {
+  const last = chat.messages[chat.messages.length - 1];
+  const ultimaFecha = last?.timestamp ?? chat.fechaUltimoMensaje ?? null;
+  if (!last) return { label: chat.respondido ? "Respondido" : "Sin respuesta", waiting: null, ultimaFecha };
+  if (last.role === "lead") return { label: "Esperando respuesta del asesor", waiting: "asesor", ultimaFecha };
+  return { label: "Esperando respuesta del lead", waiting: "lead", ultimaFecha };
+}
+
 // Normaliza un teléfono/identificador a sus últimos 10 dígitos para cruzar leads y
 // chats sin importar el formato (+57, espacios, guiones, prefijo de país, etc.).
 function phoneKey(v?: string | null): string {
@@ -940,6 +961,13 @@ function InteraccionDetalleModal({ interaccion, leadName, onClose }: { interacci
   const chat = interaccion.chat;
   const cita = interaccion.cita;
 
+  // Estado derivado del chat (quién habló último / a quién se espera) + resumen.
+  const chatInfo = chat ? chatEstado(chat) : null;
+  const chatCatHuman = chat ? humanizeCategoria(chat.iaCategoria) : null;
+  const chatUltimoMsg = chat?.messages[chat.messages.length - 1];
+  const chatEnQueQuedo = chat?.iaResumen?.trim()
+    || (chatUltimoMsg ? `${chatUltimoMsg.role === "lead" ? "Lead" : "Asesor"}: ${chatUltimoMsg.message}` : "Sin mensajes");
+
   // Llamada sin ningún dato (ni resumen ni transcripción ni análisis) → aún así
   // mostramos el modal con el mensaje "sin análisis" para no dejar clics muertos.
   const llamadaSinDatos =
@@ -1026,6 +1054,36 @@ function InteraccionDetalleModal({ interaccion, leadName, onClose }: { interacci
                 )}
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] bg-surface-600 text-gray-300">{chat.messages.length} mensajes</span>
               </div>
+
+              {/* ── Estado del chat (derivado + resumen IA cuando exista) ── */}
+              {chatInfo && (
+                <div className="rounded-lg bg-surface-700/50 p-3 space-y-2">
+                  <h4 className="text-xs font-semibold text-accent-amber flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" /> Estado del chat</h4>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                      chatInfo.waiting === "asesor" ? "bg-accent-amber/20 text-accent-amber"
+                        : chatInfo.waiting === "lead" ? "bg-accent-cyan/20 text-accent-cyan"
+                        : "bg-surface-600 text-gray-300"
+                    }`}>
+                      {chatInfo.waiting ? "⏳ " : ""}{chatInfo.label}
+                    </span>
+                    {chatInfo.ultimaFecha && (
+                      <span className="text-[11px] text-gray-500">· última actividad {formatDistanceToNow(new Date(chatInfo.ultimaFecha), { addSuffix: true, locale: es })}</span>
+                    )}
+                    {chatCatHuman && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] bg-accent-purple/20 text-accent-purple">{chatCatHuman}</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wide text-gray-500 flex items-center gap-1">
+                      En qué quedó
+                      {!chat.iaResumen && <span className="text-[9px] normal-case text-gray-600">(último mensaje)</span>}
+                    </span>
+                    <p className="text-sm text-gray-300 leading-snug whitespace-pre-wrap break-words">{chatEnQueQuedo}</p>
+                  </div>
+                </div>
+              )}
+
               {chat.messages.length > 0 ? (
                 <div className="space-y-0">
                   {chat.messages.map((msg, mi) => (
