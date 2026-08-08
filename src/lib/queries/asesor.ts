@@ -14,6 +14,7 @@ import type {
   AsesorResponse,
   AsesorBreakdown,
   ApiAdvisor,
+  ResumenLlamada,
 } from "@/types";
 
 // ─── Normalización de estados ────────────────────────────────────────────────
@@ -403,7 +404,17 @@ export async function getAsesorData(
   const callsByContact: Record<string, LlamadaItem[]> = {};
   for (const c of callRows) {
     const lbl = labelLlamada(c.tipo_evento, c.estado_resultado);
-    const item: LlamadaItem = { date: c.ts?.toISOString() ?? "", text: c.ia_descripcion ?? "", estado: lbl.estado, categoria: lbl.categoria };
+    const item: LlamadaItem = {
+      id: c.id,
+      date: c.ts?.toISOString() ?? "",
+      text: c.ia_descripcion ?? "",
+      estado: lbl.estado,
+      categoria: lbl.categoria,
+      tipoEvento: c.tipo_evento ?? undefined,
+      transcripcion: c.transcripcion ?? null,
+      iaDescripcion: c.ia_descripcion ?? null,
+      resumenLlamada: (c.resumen_llamada as ResumenLlamada | null) ?? null,
+    };
     const em = c.mail_lead?.trim().toLowerCase();
     const ph = c.phone?.trim();
     const ct = c.contact_id_ghl?.trim();

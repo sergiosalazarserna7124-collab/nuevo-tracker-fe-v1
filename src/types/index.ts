@@ -700,6 +700,21 @@ export interface DashboardResponse {
 
 // ── Canal: Llamadas ───────────────────────────────────────────────────────────
 
+/** Una llamada individual del lead con su análisis IA y datos ricos para el detalle. */
+export interface AsesorNotaLlamada {
+  /** id de log_llamadas (para llaves de React y edición) */
+  id?: number;
+  date: string;
+  /** Texto de análisis IA — usado como preview en la lista. */
+  text: string;
+  estado?: string;
+  categoria?: string;
+  tipoEvento?: string;
+  transcripcion?: string | null;
+  iaDescripcion?: string | null;
+  resumenLlamada?: ResumenLlamada | null;
+}
+
 export interface AsesorLeadCRM {
   id: string;
   name: string;
@@ -712,7 +727,9 @@ export interface AsesorLeadCRM {
   intentosContacto: number;
   speedToLead: string;
   // Cada llamada individual del lead con su resultado (para filtrar en el detalle).
-  notasLlamadas: { date: string; text: string; estado?: string; categoria?: string }[];
+  // Además del texto de análisis IA (`text`), lleva los campos ricos para abrir el
+  // detalle completo: resumen estructurado, transcripción y análisis IA.
+  notasLlamadas: AsesorNotaLlamada[];
   leadNote: string | null;
   excluido: boolean;
 }

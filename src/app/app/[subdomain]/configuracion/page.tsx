@@ -4,10 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import PageHeader from "@/components/dashboard/PageHeader";
 import HelpTooltip from "@/components/dashboard/HelpTooltip";
 import DocumentacionContent from "@/components/dashboard/DocumentacionContent";
-import { UserPlus, Shield, Crown, Users, X, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle, Lock, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { UserPlus, Crown, Users, X, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle, Lock, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useUserFilter } from "@/contexts/UserFilterContext";
 import { canManageUsers, canManageRoles, canManageSystem } from "@/lib/permisos";
-import { PERMISOS_DISPONIBLES, type PermisoId } from "@/lib/permisos";
 import type { RolConfig } from "@/lib/db/schema";
 import { toast } from "sonner";
 
@@ -193,9 +192,6 @@ export default function ConfiguracionPage() {
   const [bulkResult, setBulkResult] = useState<{ creados: number; errores: Array<{ email: string; error: string }> } | null>(null);
   const bulkFileRef = useRef<HTMLInputElement>(null);
 
-  const [modalRol, setModalRol] = useState<"create" | "edit" | null>(null);
-  const [editingRol, setEditingRol] = useState<RolConfig | null>(null);
-  const [formRol, setFormRol] = useState<RolConfig>({ id: "", nombre: "", permisos: [] });
 
   const [criteriosData, setCriteriosData] = useState<CriteriosCalificacionData | null>(null);
   const [criteriosSeleccionados, setCriteriosSeleccionados] = useState<string[]>([]);
@@ -284,11 +280,21 @@ export default function ConfiguracionPage() {
     try {
       const res = await fetch("/api/data/usuarios/sync", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (data?.skipped || data?.ok === false) {
-        toast.warning(data?.reason ?? "No se pudo sincronizar con GHL");
+      if (data?.skipped) {
+        toast.warning("El sync con GHL no está configurado en el servidor.", {
+          description: "Falta la variable CEREBRO_CRON_SECRET en el entorno del frontend.",
+        });
+      } else if (data?.ok === false || data?.success === false) {
+        toast.error(data?.error ?? data?.reason ?? "No se pudo sincronizar con GHL");
       } else {
-        const n = data?.synced ?? data?.total ?? null;
-        toast.success(n != null ? `${n} usuario(s) sincronizado(s) desde GHL` : "Usuarios sincronizados desde GHL");
+        const resultados: { creados?: number; actualizados?: number }[] = Array.isArray(data?.resultados) ? data.resultados : [];
+        const creados = resultados.reduce((s, x) => s + (x?.creados ?? 0), 0);
+        const actualizados = resultados.reduce((s, x) => s + (x?.actualizados ?? 0), 0);
+        toast.success(
+          creados + actualizados > 0
+            ? `Sincronizado desde GHL: ${creados} creado(s), ${actualizados} actualizado(s)`
+            : "Usuarios sincronizados desde GHL",
+        );
       }
       await loadUsers();
     } catch {
@@ -352,26 +358,6 @@ export default function ConfiguracionPage() {
     catch { toast.error("Error al actualizar el rol"); }
   };
 
-  const openCreateRol = () => { setEditingRol(null); setFormRol({ id: `rol_${Date.now()}`, nombre: "", permisos: [] }); setModalRol("create"); };
-  const openEditRol = (r: RolConfig) => { setEditingRol(r); setFormRol({ ...r }); setModalRol("edit"); };
-  const togglePermisoRol = (permisoId: PermisoId) => { setFormRol((prev) => ({ ...prev, permisos: prev.permisos.includes(permisoId) ? prev.permisos.filter((p) => p !== permisoId) : [...prev.permisos, permisoId] })); };
-
-  const handleSubmitRol = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true);
-    try {
-      const newRoles = editingRol ? roles.map((r) => (r.id === editingRol.id ? formRol : r)) : [...roles, formRol];
-      const res = await fetch("/api/data/roles", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roles_config: newRoles }) });
-      if (!res.ok) throw new Error("Error al guardar rol"); toast.success("Rol guardado"); setModalRol(null); loadRoles();
-    } catch { toast.error("Error al guardar el rol"); }
-    setSaving(false);
-  };
-
-  const handleDeleteRol = async (id: string) => {
-    if (["superadmin", "usuario"].includes(id)) return;
-    if (!confirm("¿Eliminar este rol?")) return;
-    try { const newRoles = roles.filter((r) => r.id !== id); const res = await fetch("/api/data/roles", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roles_config: newRoles }) }); if (!res.ok) throw new Error("Error al eliminar rol"); toast.success("Rol eliminado"); loadRoles(); }
-    catch { toast.error("Error al eliminar el rol"); }
-  };
 
   const handleBulkUpload = async (e: React.FormEvent) => {
     e.preventDefault(); if (!bulkFile) return; setBulkLoading(true); setBulkResult(null);
@@ -546,41 +532,8 @@ export default function ConfiguracionPage() {
 
   return (
     <>
-      <PageHeader title="Configuración" subtitle="Usuarios · Roles · Canales" action={<span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-amber/20 text-accent-amber border border-accent-amber/40 font-medium uppercase shrink-0">Beta</span>} />
+      <PageHeader title="Configuración" subtitle="Usuarios · Canales" action={<span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-amber/20 text-accent-amber border border-accent-amber/40 font-medium uppercase shrink-0">Beta</span>} />
       <div className="p-3 md:p-4 max-w-4xl mx-auto space-y-6 text-sm min-w-0 max-w-full overflow-x-hidden">
-        {/* ── Roles ── */}
-        {puedeRoles && (
-          <section className="rounded-xl border border-surface-500 bg-surface-800/80 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-accent-cyan" />
-                <h2 className="text-sm font-semibold text-white">Roles</h2>
-                <span className="px-2 py-0.5 rounded-full bg-accent-cyan/20 text-accent-cyan text-xs font-medium">{roles.length + 2}</span>
-              </div>
-              <button type="button" onClick={openCreateRol} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-cyan text-black text-sm font-semibold hover:bg-accent-cyan/90 transition-colors">
-                <Plus className="w-4 h-4" /> Crear rol
-              </button>
-            </div>
-            <ul className="space-y-2">
-              {ROLES_BUILTIN.map((r) => (
-                <li key={r.id} className="flex items-center justify-between rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2">
-                  <span className="text-white font-medium">{r.nombre}</span>
-                  <span className="text-xs text-gray-500">(integrado)</span>
-                </li>
-              ))}
-              {roles.map((r) => (
-                <li key={r.id} className="flex items-center justify-between rounded-lg bg-surface-700/80 border border-surface-500 px-3 py-2">
-                  <span className="text-white font-medium">{r.nombre}</span>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => openEditRol(r)} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan"><Pencil className="w-4 h-4" /></button>
-                    <button type="button" onClick={() => handleDeleteRol(r.id)} className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
         {/* ── Usuarios ── */}
         {puedeUsuarios && (
           <section className="rounded-xl border border-surface-500 bg-surface-800/80 p-4">
@@ -739,23 +692,6 @@ export default function ConfiguracionPage() {
               <div><label className="block text-xs text-gray-400 mb-1">Rol</label><select value={formUser.rol} onChange={(e) => setFormUser((f) => ({ ...f, rol: e.target.value }))} className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40">{rolesParaSelect.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></div>
               <div><label className="block text-xs text-gray-400 mb-1">Tipo de usuario</label><select value={formUser.tipo_usuario} onChange={(e) => setFormUser((f) => ({ ...f, tipo_usuario: e.target.value as TipoUsuario }))} className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40"><option value="analista">Analista (ve todo el dashboard)</option><option value="enfoque">Enfoque (kiosko fullscreen, solo órdenes)</option></select>{formUser.tipo_usuario === "enfoque" && <p className="text-[11px] text-accent-purple mt-1">Este usuario solo verá el modo enfoque en pantalla completa al iniciar sesión.</p>}</div>
               <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalUser(null)} className="flex-1 px-3 py-2 rounded-lg bg-surface-600 text-gray-300 text-sm font-medium hover:bg-surface-500">Cancelar</button><button type="submit" disabled={saving} className="flex-1 px-3 py-2 rounded-lg bg-accent-cyan text-black text-sm font-semibold hover:bg-accent-cyan/90 disabled:opacity-50">{saving ? "Guardando..." : editingUser ? "Guardar" : "Crear usuario"}</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-      {modalRol && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalRol(null)} aria-hidden />
-          <div className="relative w-full max-w-lg rounded-xl bg-surface-800 border border-surface-500 shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-500 shrink-0">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">{editingRol ? <><Shield className="w-4 h-4 text-accent-cyan" /> Editar rol</> : <><Plus className="w-4 h-4 text-accent-cyan" /> Crear rol</>}</h3>
-              <button type="button" onClick={() => setModalRol(null)} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-            <form className="p-4 space-y-4 overflow-y-auto flex-1" onSubmit={handleSubmitRol}>
-              <div><label className="block text-xs text-gray-400 mb-1">Nombre del rol</label><input type="text" value={formRol.nombre} onChange={(e) => setFormRol((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Asesor Senior" required className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40" /></div>
-              {!editingRol && <div><label className="block text-xs text-gray-400 mb-1">ID (único, sin espacios)</label><input type="text" value={formRol.id} onChange={(e) => setFormRol((f) => ({ ...f, id: e.target.value.replace(/\s/g, "_") }))} placeholder="asesor_senior" required className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40" /></div>}
-              <div><label className="block text-xs text-gray-400 mb-2">Permisos</label><div className="space-y-2 max-h-48 overflow-y-auto">{PERMISOS_DISPONIBLES.map((p) => <label key={p.id} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={formRol.permisos.includes(p.id)} onChange={() => togglePermisoRol(p.id)} className="rounded border-surface-500 bg-surface-700 text-accent-cyan focus:ring-accent-cyan/40" /><span className="text-sm text-gray-300">{p.label}</span></label>)}</div></div>
-              <div className="flex gap-2 pt-2 shrink-0"><button type="button" onClick={() => setModalRol(null)} className="flex-1 px-3 py-2 rounded-lg bg-surface-600 text-gray-300 text-sm font-medium hover:bg-surface-500">Cancelar</button><button type="submit" disabled={saving} className="flex-1 px-3 py-2 rounded-lg bg-accent-cyan text-black text-sm font-semibold hover:bg-accent-cyan/90 disabled:opacity-50">{saving ? "Guardando..." : editingRol ? "Guardar" : "Crear rol"}</button></div>
             </form>
           </div>
         </div>
