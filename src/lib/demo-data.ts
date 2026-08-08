@@ -100,11 +100,13 @@ export function generateDashboard(): DashboardResponse {
       leadsConActividadDetalle: [],
       leadsReactivadosDetalle: [],
       callsMade: calls,
+      contestadas: Math.floor(calls * 0.4),
       speedToLeadAvg: rnd(2, 50) + Math.random(),
       meetingsBooked: booked,
       meetingsAttended: attended,
       revenue: rev,
       cashCollected: Math.floor(rev * 0.7),
+      dineroEntrante: rev,
       contactRate: pct(contestadas, callsMade),
       bookingRate: pct(booked, leads),
     };

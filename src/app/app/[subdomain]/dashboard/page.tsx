@@ -32,18 +32,12 @@ const OBJECTION_PIE_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6
 const LOSS_REASON_PIE_COLORS = ['#f43f5e', '#fb923c', '#a78bfa', '#38bdf8', '#34d399', '#fbbf24'];
 
 const RANKING_COLS = [
-  { key: 'leads', label: 'Leads trabajados' },
-  { key: 'generados', label: 'Leads nuevos' },
-  { key: 'reactivados', label: 'Leads reactivados' },
-  { key: 'con_actividad', label: 'Con actividad' },
-  { key: 'llamadas', label: 'Llamadas' },
-  { key: 'tiempo_lead', label: 'Tiempo al lead' },
+  { key: 'leads', label: 'Leads' },
+  { key: 'llamadas', label: 'Llamadas realizadas' },
+  { key: 'contestadas', label: 'Llamadas contestadas' },
   { key: 'agendadas', label: 'Citas agendadas' },
-  { key: 'asistidas', label: 'Citas asistidas' },
-  { key: 'facturacion', label: 'Facturación' },
-  { key: 'efectivo', label: 'Efectivo' },
-  { key: 'tasa_contacto', label: 'Tasa contacto' },
-  { key: 'tasa_agend', label: 'Tasa agend.' },
+  { key: 'asistidas', label: 'Asistencia' },
+  { key: 'dinero', label: 'Dinero entrante' },
 ] as const;
 
 type RankingColKey = typeof RANKING_COLS[number]['key'];
@@ -53,19 +47,13 @@ type RankingSortKey = 'score' | RankingColKey | (string & Record<never, never>);
 
 function rankingSortValue(row: DashboardAdvisorRow, key: RankingSortKey): number {
   switch (key) {
-    case 'score': return row.callsMade + row.meetingsBooked + row.meetingsAttended + row.revenue / 1000;
+    case 'score': return row.callsMade + row.meetingsBooked + row.meetingsAttended + (row.dineroEntrante ?? 0) / 1000;
     case 'leads': return row.totalLeads;
-    case 'generados': return row.leadsGenerados;
-    case 'reactivados': return row.leadsReactivados;
-    case 'con_actividad': return row.leadsConActividad;
     case 'llamadas': return row.callsMade;
-    case 'tiempo_lead': return row.speedToLeadAvg ?? 0;
+    case 'contestadas': return row.contestadas ?? 0;
     case 'agendadas': return row.meetingsBooked;
     case 'asistidas': return row.meetingsAttended;
-    case 'facturacion': return row.revenue;
-    case 'efectivo': return row.cashCollected;
-    case 'tasa_contacto': return row.contactRate;
-    case 'tasa_agend': return row.bookingRate;
+    case 'dinero': return row.dineroEntrante ?? 0;
     default: {
       if (key.startsWith('webhook:')) {
         const campo = key.slice(8);
@@ -824,18 +812,12 @@ export default function DashboardPage() {
                 <thead>
                   <tr className="bg-surface-700 text-left text-gray-400">
                     <th className="px-2 py-2 font-medium">Asesor</th>
-                    {rankingColsVisible.includes('leads') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('leads')}><span title="Leads únicos con actividad (llamada o cita) en el período. Incluye leads de períodos anteriores que recibieron atención ahora.">{leadFilter === 'nuevos' ? 'Leads nuevos' : leadFilter === 'reactivados' ? 'Leads reactivados' : 'Leads trabajados'} ⓘ</span><RankingSortIcon col="leads" /></th>}
-                    {rankingColsVisible.includes('generados') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('generados')}><span title="Leads NUEVOS que llegaron al CRM en este período asignados a este asesor. Diferente a 'Leads trabajados' que incluye leads de períodos anteriores.">Leads nuevos ⓘ</span><RankingSortIcon col="generados" /></th>}
-                    {rankingColsVisible.includes('reactivados') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('reactivados')}><span title="Leads que ya existían antes del período pero tuvieron actividad (llamada o cita) durante el mismo. Útil para medir campañas de reactivación.">Reactivados ⓘ</span><RankingSortIcon col="reactivados" /></th>}
-                    {rankingColsVisible.includes('con_actividad') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('con_actividad')}><span title="Leads únicos que recibieron al menos una llamada o cita en el período (incluyendo leads antiguos). Similar a 'Leads trabajados' pero contando también los que solo tienen teléfono sin email.">Con actividad ⓘ</span><RankingSortIcon col="con_actividad" /></th>}
-                    {rankingColsVisible.includes('llamadas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('llamadas')}>Llamadas<RankingSortIcon col="llamadas" /></th>}
-                    {rankingColsVisible.includes('tiempo_lead') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('tiempo_lead')}>Tiempo al lead<RankingSortIcon col="tiempo_lead" /></th>}
-                    {rankingColsVisible.includes('agendadas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('agendadas')}><span title="Citas agendadas únicas en el período (leads únicos, sin contar múltiples estados del mismo lead). Este número es el mismo que aparece en el panel ejecutivo.">Citas agendadas ⓘ</span><RankingSortIcon col="agendadas" /></th>}
-                    {rankingColsVisible.includes('asistidas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('asistidas')}><span title="Leads que se presentaron a su cita (asistieron).">Citas asistidas ⓘ</span><RankingSortIcon col="asistidas" /></th>}
-                    {rankingColsVisible.includes('facturacion') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('facturacion')}>Facturación<RankingSortIcon col="facturacion" /></th>}
-                    {rankingColsVisible.includes('efectivo') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('efectivo')}>Efectivo<RankingSortIcon col="efectivo" /></th>}
-                    {rankingColsVisible.includes('tasa_contacto') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('tasa_contacto')}>Tasa contacto<RankingSortIcon col="tasa_contacto" /></th>}
-                    {rankingColsVisible.includes('tasa_agend') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('tasa_agend')}>Tasa agend.<RankingSortIcon col="tasa_agend" /></th>}
+                    {rankingColsVisible.includes('leads') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('leads')}><span title="Leads únicos trabajados en el período, sin importar el canal: llamada, chat o cita.">{leadFilter === 'nuevos' ? 'Leads nuevos' : leadFilter === 'reactivados' ? 'Leads reactivados' : 'Leads'} ⓘ</span><RankingSortIcon col="leads" /></th>}
+                    {rankingColsVisible.includes('llamadas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('llamadas')}>Llamadas realizadas<RankingSortIcon col="llamadas" /></th>}
+                    {rankingColsVisible.includes('contestadas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('contestadas')}>Llamadas contestadas<RankingSortIcon col="contestadas" /></th>}
+                    {rankingColsVisible.includes('agendadas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('agendadas')}><span title="Citas agendadas únicas en el período (leads únicos, sin contar múltiples estados del mismo lead).">Citas agendadas ⓘ</span><RankingSortIcon col="agendadas" /></th>}
+                    {rankingColsVisible.includes('asistidas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('asistidas')}><span title="Leads que se presentaron a su cita (asistieron).">Asistencia ⓘ</span><RankingSortIcon col="asistidas" /></th>}
+                    {rankingColsVisible.includes('dinero') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('dinero')}><span title="Monto apartado + monto vendido del período de los leads de este asesor (etiquetas 'apartado' y 'compro').">Dinero entrante ⓘ</span><RankingSortIcon col="dinero" /></th>}
                     {webhookRankingCols.map((col) => (
                       <th key={col.key} className="px-2 py-2 font-medium">{col.label}</th>
                     ))}
@@ -859,48 +841,22 @@ export default function DashboardPage() {
                               <><span className="inline-block w-2 h-2 rounded-full bg-accent-green mr-2" />{a.advisorName}</>
                             )}
                           </td>
-                          {rankingColsVisible.includes('leads') && <td className="px-2 py-2 text-white">{a.totalLeads}</td>}
-                          {rankingColsVisible.includes('generados') && (
+                          {rankingColsVisible.includes('leads') && (
                             <td className="px-2 py-2">
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); if (a.leadsGenerados > 0) setModalLeads({ titulo: `Leads generados — ${a.advisorName}`, leads: a.leadsGeneradosDetalle }); }}
-                                className={clsx('tabular-nums', a.leadsGenerados > 0 ? 'text-accent-amber underline decoration-dashed underline-offset-2 cursor-pointer hover:text-white' : 'text-gray-500')}
+                                onClick={(e) => { e.stopPropagation(); if (a.leadsConActividadDetalle.length > 0) setModalLeads({ titulo: `Leads — ${a.advisorName}`, leads: a.leadsConActividadDetalle }); }}
+                                className={clsx('tabular-nums', a.totalLeads > 0 ? 'text-white underline decoration-dashed underline-offset-2 cursor-pointer hover:text-accent-cyan' : 'text-gray-500')}
                               >
-                                {a.leadsGenerados}
-                              </button>
-                            </td>
-                          )}
-                          {rankingColsVisible.includes('reactivados') && (
-                            <td className="px-2 py-2">
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); if (a.leadsReactivados > 0) setModalLeads({ titulo: `Leads reactivados — ${a.advisorName}`, leads: a.leadsReactivadosDetalle }); }}
-                                className={clsx('tabular-nums', a.leadsReactivados > 0 ? 'text-accent-purple underline decoration-dashed underline-offset-2 cursor-pointer hover:text-white' : 'text-gray-500')}
-                              >
-                                {a.leadsReactivados}
-                              </button>
-                            </td>
-                          )}
-                          {rankingColsVisible.includes('con_actividad') && (
-                            <td className="px-2 py-2">
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); if (a.leadsConActividad > 0) setModalLeads({ titulo: `Leads con actividad — ${a.advisorName}`, leads: a.leadsConActividadDetalle }); }}
-                                className={clsx('tabular-nums', a.leadsConActividad > 0 ? 'text-accent-cyan underline decoration-dashed underline-offset-2 cursor-pointer hover:text-white' : 'text-gray-500')}
-                              >
-                                {a.leadsConActividad}
+                                {a.totalLeads}
                               </button>
                             </td>
                           )}
                           {rankingColsVisible.includes('llamadas') && <td className="px-2 py-2 text-accent-cyan">{a.callsMade}</td>}
-                          {rankingColsVisible.includes('tiempo_lead') && <td className="px-2 py-2 text-gray-300">{a.speedToLeadAvg != null ? minFmt(a.speedToLeadAvg) : '—'}</td>}
+                          {rankingColsVisible.includes('contestadas') && <td className="px-2 py-2 text-accent-green">{a.contestadas ?? 0}</td>}
                           {rankingColsVisible.includes('agendadas') && <td className="px-2 py-2 text-accent-purple">{a.meetingsBooked}</td>}
                           {rankingColsVisible.includes('asistidas') && <td className="px-2 py-2 text-accent-cyan">{a.meetingsAttended}</td>}
-                          {rankingColsVisible.includes('facturacion') && <td className="px-2 py-2 text-accent-green">{fm(a.revenue)}</td>}
-                          {rankingColsVisible.includes('efectivo') && <td className="px-2 py-2 text-accent-green">{fm(a.cashCollected)}</td>}
-                          {rankingColsVisible.includes('tasa_contacto') && <td className="px-2 py-2">{pctFmt(a.contactRate)}</td>}
-                          {rankingColsVisible.includes('tasa_agend') && <td className="px-2 py-2">{pctFmt(a.bookingRate)}</td>}
+                          {rankingColsVisible.includes('dinero') && <td className="px-2 py-2 text-accent-green">{fm(a.dineroEntrante ?? 0)}</td>}
                           {webhookRankingCols.map((col) => (
                             <td key={col.key} className="px-2 py-2 text-gray-300">
                               {a.metricasWebhook?.[col.key] ?? '—'}

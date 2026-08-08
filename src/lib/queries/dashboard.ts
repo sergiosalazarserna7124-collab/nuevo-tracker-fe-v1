@@ -748,6 +748,52 @@ export async function getDashboard(
     newLeadsMap[key].push(c);
   }
 
+  // ── Datos extra del ranking: leads por CHAT y dinero entrante ──────────────
+  // Un lead atendido solo por chat también es un "lead trabajado" del asesor.
+  const chatAdvisorRows = (await db.execute(sql`
+    SELECT id_lead, MIN(nombre_lead) AS nombre_lead, asesor_asignado,
+           MAX(COALESCE(primer_msg_at, fecha_y_hora_z)) AS ts
+    FROM chats_logs
+    WHERE id_cuenta = ${idCuenta} AND id_lead IS NOT NULL
+      AND excluida_dashboard IS NOT TRUE
+      AND COALESCE(primer_msg_at, primer_msg_lead_at, fecha_y_hora_z) >= ${fromDate}
+      AND COALESCE(primer_msg_at, primer_msg_lead_at, fecha_y_hora_z) <= ${toDate}
+    GROUP BY id_lead, asesor_asignado
+  `)).rows as Array<{ id_lead: string; nombre_lead: string | null; asesor_asignado: string | null; ts: string | Date | null }>;
+
+  // Dinero entrante del período por contacto (monto apartado + monto vendido,
+  // etiquetas 'apartado'/'compro'), atribuido al asesor del lead.
+  const dineroRows = (await db.execute(sql`
+    SELECT o.ghl_contact_id,
+           COALESCE(SUM(CASE WHEN o.apartado AND o.fecha_apartado BETWEEN ${fromDate} AND ${toDate} THEN o.monto_apartado ELSE 0 END), 0)
+         + COALESCE(SUM(CASE WHEN o.venta AND o.fecha_venta BETWEEN ${fromDate} AND ${toDate} THEN COALESCE(o.monto_venta, o.monetary_value) ELSE 0 END), 0) AS dinero,
+           MAX(r.closer_mail) AS closer_mail, MAX(r.nombre_closer) AS nombre_closer
+    FROM oportunidades o
+    LEFT JOIN registros_de_llamada r
+      ON r.id_cuenta = ${String(idCuenta)} AND r.ghl_contact_id = o.ghl_contact_id
+    WHERE o.id_cuenta = ${idCuenta} AND COALESCE(o.status, '') <> 'deleted' AND o.ghl_contact_id IS NOT NULL
+      AND ((o.apartado AND o.fecha_apartado BETWEEN ${fromDate} AND ${toDate})
+        OR (o.venta AND o.fecha_venta BETWEEN ${fromDate} AND ${toDate}))
+    GROUP BY o.ghl_contact_id
+  `)).rows as Array<{ ghl_contact_id: string; dinero: string | number; closer_mail: string | null; nombre_closer: string | null }>;
+
+  const chatLeadsByAdvisor: Record<string, Map<string, { nombre: string | null; email: null; telefono: null; ultimaActividad: string | null }>> = {};
+  for (const ch of chatAdvisorRows) {
+    if (esNoTrackeado(ch.id_lead)) continue;
+    const raw = (ch.asesor_asignado ?? "").trim();
+    const key = normAdvisorKey(raw.includes("@") ? raw : null, raw.includes("@") ? null : raw || null);
+    const mapa = chatLeadsByAdvisor[key] ?? new Map();
+    mapa.set(ch.id_lead.trim(), { nombre: ch.nombre_lead, email: null, telefono: null, ultimaActividad: toDateString(ch.ts) });
+    chatLeadsByAdvisor[key] = mapa;
+  }
+  const dineroByAdvisor: Record<string, Array<{ contactId: string; monto: number }>> = {};
+  for (const d of dineroRows) {
+    if (esNoTrackeado(d.ghl_contact_id)) continue;
+    const monto = Number(d.dinero) || 0;
+    const key = normAdvisorKey(d.closer_mail, d.nombre_closer);
+    (dineroByAdvisor[key] ??= []).push({ contactId: d.ghl_contact_id.trim(), monto });
+  }
+
   const advisorMap: Record<string, { calls: typeof filteredCalls; agendas: typeof filteredAgendas }> = {};
   for (const c of filteredCalls) {
     const key = normAdvisorKey(c.closer_mail, c.nombre_closer);
@@ -768,23 +814,37 @@ export async function getDashboard(
     advisorMap[existingKey].agendas.push(a);
   }
 
+  // Asesores que solo tienen chats o dinero (sin llamadas/citas) también
+  // necesitan fila en el ranking.
+  for (const key of [...Object.keys(chatLeadsByAdvisor), ...Object.keys(dineroByAdvisor)]) {
+    if (!advisorMap[key]) advisorMap[key] = { calls: [], agendas: [] };
+  }
+
   // webhookPorUsuario debe declararse ANTES del loop de advisorRanking
   // (se llena después con los webhookRows, pero necesita existir para el closure)
   const webhookPorUsuario: Record<string, Record<string, number>> = {};
 
+  // Clave de lead unificada para el ranking: prioriza el GHL contact id para
+  // que llamadas, chats y leads nuevos dedupliquen entre sí.
+  const advLeadKey = (contactId?: string | null, mail?: string | null, phone?: string | null, fallback?: string): string =>
+    contactId?.trim() || mail?.trim().toLowerCase() || phone?.trim() || fallback || "sin_id";
+
   const advisorRanking: DashboardAdvisorRow[] = Object.entries(advisorMap).map(
     ([key, { calls: ac, agendas: aa }]) => {
+      const advisorChatLeads = chatLeadsByAdvisor[key] ?? new Map<string, { nombre: string | null; email: null; telefono: null; ultimaActividad: string | null }>();
+      const advisorDinero = dineroByAdvisor[key] ?? [];
       const aContestadas = ac.filter((c) => esLlamadaContestada(c.tipo_evento ?? "", c.estado_resultado)).length;
       const aLeadsContactados = new Set(
         ac
           .filter((c) => esLlamadaContestada(c.tipo_evento ?? "", c.estado_resultado))
-          .map((c) => c.mail_lead?.trim().toLowerCase() || c.phone?.trim() || c.contact_id_ghl?.trim() || String(c.id))
+          .map((c) => advLeadKey(c.contact_id_ghl, c.mail_lead, c.phone, String(c.id)))
       ).size;
-      // Deduplicar leads usando la misma clave que meetingsBooked (idcliente || ghl_contact_id || email || phone)
-      // Usar solo email causaba subestimar el denominador cuando leads llegan solo con phone o GHL ID
+      // Leads trabajados = leads únicos con llamada, cita O CHAT en el período
+      // (clave unificada por contact id para deduplicar entre canales).
       const aLeads = new Set([
-        ...ac.map((c) => c.mail_lead?.trim().toLowerCase() || c.phone?.trim() || c.contact_id_ghl?.trim() || String(c.id)),
+        ...ac.map((c) => advLeadKey(c.contact_id_ghl, c.mail_lead, c.phone, String(c.id))),
         ...aa.map((a) => agendaDedupKey(a)),
+        ...advisorChatLeads.keys(),
       ]).size;
       const aAsistidas = aa.filter((a) => attendedSet.has((a.categoria ?? "").toLowerCase().trim()) && hasRealInteraction(a)).length;
       const aRevenueClosedSet = aa.filter((a) => closedSet.has((a.categoria ?? "").toLowerCase().trim()))
@@ -816,7 +876,7 @@ export async function getDashboard(
       const advisorNewLeads = newLeadsMap[key] ?? [];
       const uniqueNewLeadsMap = new Map<string, (typeof advisorNewLeads)[0]>();
       for (const nl of advisorNewLeads) {
-        const leadKey = nl.mail_lead?.trim().toLowerCase() || nl.phone?.trim() || String(nl.id);
+        const leadKey = advLeadKey(nl.contact_id_ghl, nl.mail_lead, nl.phone, String(nl.id));
         if (!uniqueNewLeadsMap.has(leadKey)) uniqueNewLeadsMap.set(leadKey, nl);
       }
       const leadsGeneradosDetalle = Array.from(uniqueNewLeadsMap.values()).map((nl) => ({
@@ -826,10 +886,10 @@ export async function getDashboard(
         ultimaActividad: nl.ts ? toDateString(nl.ts) : null,
       }));
 
-      // Leads con actividad: leads únicos del periodo que tuvieron llamada o cita
+      // Leads con actividad: leads únicos del periodo que tuvieron llamada, cita o chat
       const uniqueActivosMap = new Map<string, { nombre: string | null; email: string | null; telefono: string | null; ultimaActividad: string | null }>();
       for (const c of ac) {
-        const leadKey = c.mail_lead?.trim().toLowerCase() || c.phone?.trim() || String(c.id);
+        const leadKey = advLeadKey(c.contact_id_ghl, c.mail_lead, c.phone, String(c.id));
         if (!uniqueActivosMap.has(leadKey)) {
           uniqueActivosMap.set(leadKey, {
             nombre: c.nombre_lead ?? null,
@@ -840,7 +900,7 @@ export async function getDashboard(
         }
       }
       for (const a of aa) {
-        const leadKey = a.email_lead?.trim().toLowerCase() || `agenda_${a.id_registro_agenda}`;
+        const leadKey = a.ghl_contact_id?.trim() || a.email_lead?.trim().toLowerCase() || `agenda_${a.id_registro_agenda}`;
         if (!uniqueActivosMap.has(leadKey)) {
           uniqueActivosMap.set(leadKey, {
             nombre: a.nombre_de_lead ?? null,
@@ -850,6 +910,9 @@ export async function getDashboard(
           });
         }
       }
+      for (const [leadKey, chatLead] of advisorChatLeads) {
+        if (!uniqueActivosMap.has(leadKey)) uniqueActivosMap.set(leadKey, chatLead);
+      }
       const leadsConActividadDetalle = Array.from(uniqueActivosMap.values());
 
       const newLeadKeys = new Set(uniqueNewLeadsMap.keys());
@@ -858,26 +921,29 @@ export async function getDashboard(
         .map(([, v]) => v);
 
       const computeFilteredMetrics = (leadKeys: Set<string>): {
-        totalLeads: number; callsMade: number; speedToLeadAvg: number | null;
+        totalLeads: number; callsMade: number; contestadas: number; speedToLeadAvg: number | null;
         meetingsBooked: number; meetingsAttended: number; revenue: number;
-        cashCollected: number; contactRate: number; bookingRate: number;
+        cashCollected: number; dineroEntrante: number; contactRate: number; bookingRate: number;
       } => {
         const fCalls = ac.filter((c) => {
-          const lk = c.mail_lead?.trim().toLowerCase() || c.phone?.trim() || String(c.id);
+          const lk = advLeadKey(c.contact_id_ghl, c.mail_lead, c.phone, String(c.id));
           return leadKeys.has(lk);
         });
         const fAgendas = aa.filter((a) => {
-          const lk = a.email_lead?.trim().toLowerCase() || `agenda_${a.id_registro_agenda}`;
+          const lk = a.ghl_contact_id?.trim() || a.email_lead?.trim().toLowerCase() || `agenda_${a.id_registro_agenda}`;
           return leadKeys.has(lk);
         });
-        const fContestadas = new Set(
+        const fChatLeads = [...advisorChatLeads.keys()].filter((k) => leadKeys.has(k));
+        const fContestadasCalls = fCalls.filter((c) => esLlamadaContestada(c.tipo_evento ?? "", c.estado_resultado)).length;
+        const fLeadsContactados = new Set(
           fCalls
             .filter((c) => esLlamadaContestada(c.tipo_evento ?? "", c.estado_resultado))
-            .map((c) => c.mail_lead?.trim().toLowerCase() || c.phone?.trim() || c.contact_id_ghl?.trim() || String(c.id))
+            .map((c) => advLeadKey(c.contact_id_ghl, c.mail_lead, c.phone, String(c.id)))
         ).size;
         const fLeads = new Set([
-          ...fCalls.map((c) => c.mail_lead?.trim().toLowerCase() || c.phone?.trim() || c.contact_id_ghl?.trim() || String(c.id)),
+          ...fCalls.map((c) => advLeadKey(c.contact_id_ghl, c.mail_lead, c.phone, String(c.id))),
           ...fAgendas.map((a) => agendaDedupKey(a)),
+          ...fChatLeads,
         ]).size;
         const fMeetings = new Set(fAgendas.map((a) => agendaDedupKey(a))).size;
         const fAttended = fAgendas.filter((a) => attendedSet.has((a.categoria ?? "").toLowerCase().trim()) && hasRealInteraction(a)).length;
@@ -887,15 +953,18 @@ export async function getDashboard(
         const fRevenueAny = fAgendas.reduce((s, a) => s + (parseFloat(a.facturacion || "0") || 0), 0);
         const fRevenue = useExterna ? 0 : (fRevenueClosedSet > 0 ? fRevenueClosedSet : fRevenueAny);
         const fCash = useExterna ? 0 : fAgendas.reduce((s, a) => s + (parseFloat(a.cash_collected || "0") || 0), 0);
+        const fDinero = advisorDinero.filter((d) => leadKeys.has(d.contactId)).reduce((s, d) => s + d.monto, 0);
         return {
           totalLeads: fLeads,
           callsMade: fCalls.length,
+          contestadas: fContestadasCalls,
           speedToLeadAvg: fSpeeds.length > 0 ? fSpeeds.reduce((s, v) => s + v, 0) / fSpeeds.length : null,
           meetingsBooked: fMeetings,
           meetingsAttended: fAttended,
           revenue: fRevenue,
           cashCollected: fCash,
-          contactRate: fLeads > 0 ? Math.min(1, fContestadas / fLeads) : 0,
+          dineroEntrante: fDinero,
+          contactRate: fLeads > 0 ? Math.min(1, fLeadsContactados / fLeads) : 0,
           bookingRate: fLeads > 0 ? Math.min(1, fMeetings / fLeads) : 0,
         };
       };
@@ -911,11 +980,13 @@ export async function getDashboard(
         leadsConActividadDetalle,
         leadsReactivadosDetalle,
         callsMade: ac.length,
+        contestadas: aContestadas,
         speedToLeadAvg: aSpeeds.length > 0 ? aSpeeds.reduce((s, v) => s + v, 0) / aSpeeds.length : null,
         meetingsBooked: aMeetingsBooked,
         meetingsAttended: aAsistidas,
         revenue: aRevenue,
         cashCollected: aCash,
+        dineroEntrante: advisorDinero.reduce((s, d) => s + d.monto, 0),
         contactRate: aLeads > 0 ? Math.min(1, aLeadsContactados / aLeads) : 0,
         bookingRate: aLeads > 0 ? Math.min(1, aMeetingsBooked / aLeads) : 0,
         metricasWebhook: webhookPorUsuario[ac[0]?.closer_mail ?? key] ?? {},

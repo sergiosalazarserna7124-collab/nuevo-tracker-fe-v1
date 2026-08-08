@@ -489,11 +489,13 @@ export interface LeadDetailItem {
 export interface AdvisorFilteredMetrics {
   totalLeads: number;
   callsMade: number;
+  contestadas: number;
   speedToLeadAvg: number | null;
   meetingsBooked: number;
   meetingsAttended: number;
   revenue: number;
   cashCollected: number;
+  dineroEntrante: number;
   contactRate: number;
   bookingRate: number;
 }
@@ -509,11 +511,13 @@ export interface DashboardAdvisorRow {
   leadsConActividadDetalle: LeadDetailItem[];
   leadsReactivadosDetalle: LeadDetailItem[];
   callsMade: number;
+  contestadas: number;
   speedToLeadAvg: number | null;
   meetingsBooked: number;
   meetingsAttended: number;
   revenue: number;
   cashCollected: number;
+  dineroEntrante: number;
   contactRate: number;
   bookingRate: number;
   metricasWebhook?: Record<string, number>;
