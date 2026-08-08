@@ -28,7 +28,7 @@ import { getMetricasQueDependenDe, DEFAULT_METRICAS_CONFIG, DEFAULT_EMBUDO_CONFI
 import { HORARIO_LABORAL_DEFAULT, type HorarioLaboral } from '@/lib/business-hours';
 import MetricaEditSheet from '@/components/dashboard/MetricaEditSheet';
 import DashboardsManager from '@/components/dashboard/DashboardsManager';
-import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
+import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, CategoriaCita, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
 import ChatRecoverySection from '@/features/quick-triggers/chat-recovery/ChatRecoverySection';
 import HelpTooltip from '@/components/dashboard/HelpTooltip';
 import PremiumGate from '@/components/dashboard/PremiumGate';
@@ -179,6 +179,7 @@ interface SystemConfig {
   ghl_campos?: { ia?: string; transcripcion?: string };
   ghl_campos_llamadas?: { ia?: string; transcripcion?: string };
   categorias_llamadas?: CategoriaLlamada[];
+  categorias_citas?: CategoriaCita[];
   secciones_ocultas?: string[];
   ranking_metrica_base?: string | null;
 }
@@ -283,14 +284,14 @@ export default function SystemPage() {
   // Embudo IA (7), Chat Triggers (8, el emoji de delegación vive en Eval. citas),
   // Fuente financiera (10) e Integraciones de Ads (11). Los IDs se conservan
   // para no romper deep-links como /system?step=5.
-  const VISIBLE_STEPS = [2, 3, 4, 5, 6, 9, 12, 13];
-  const parsedStep = Number(stepParam) || 2;
-  const initialStep = VISIBLE_STEPS.includes(parsedStep) ? parsedStep : 2;
+  const VISIBLE_STEPS = [1, 4, 5, 6, 9, 12, 13];
+  const parsedStep = Number(stepParam) || 1;
+  const initialStep = VISIBLE_STEPS.includes(parsedStep) ? parsedStep : 1;
   const [currentStep, setCurrentStep] = useState(initialStep);
   const goStep = (delta: number) =>
     setCurrentStep((s) => {
       const idx = VISIBLE_STEPS.indexOf(s);
-      return VISIBLE_STEPS[Math.min(VISIBLE_STEPS.length - 1, Math.max(0, idx + delta))] ?? 2;
+      return VISIBLE_STEPS[Math.min(VISIBLE_STEPS.length - 1, Math.max(0, idx + delta))] ?? 1;
     });
   const [saving, setSaving] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -351,6 +352,22 @@ export default function SystemPage() {
   const [catPrompt, setCatPrompt] = useState('');
   const [catDefinicion, setCatDefinicion] = useState('');
   const [catTemaInput, setCatTemaInput] = useState('');
+  const [catEtiqueta, setCatEtiqueta] = useState('');
+  // Categorías de citas (videollamadas) ancladas a etiqueta GHL
+  const [categoriasCitas, setCategoriasCitas] = useState<CategoriaCita[]>([]);
+  const [ccNombre, setCcNombre] = useState('');
+  const [ccEtiqueta, setCcEtiqueta] = useState('');
+  const [ccPrompt, setCcPrompt] = useState('');
+  const [ccEditId, setCcEditId] = useState<string | null>(null);
+  // Paso 1 "Prompts de evaluación": sección activa
+  const [evalSeccion, setEvalSeccion] = useState<'chats' | 'llamadas' | 'citas'>('chats');
+  // Categorías de chats (criterios custom del análisis nocturno)
+  const [chatCats, setChatCats] = useState<{ slug: string; label: string; descripcion: string }[]>([]);
+  const [chatCatsBase, setChatCatsBase] = useState<Record<string, unknown> | null>(null);
+  const [chatCatsLoaded, setChatCatsLoaded] = useState(false);
+  const [chatCatsSaving, setChatCatsSaving] = useState(false);
+  const [chatCatLabel, setChatCatLabel] = useState('');
+  const [chatCatDesc, setChatCatDesc] = useState('');
 
   // Coach de ventas state
   interface SeccionGuion {
@@ -470,6 +487,7 @@ export default function SystemPage() {
         if (cfg.idioma === 'en' || cfg.idioma === 'es') setCurrentIdioma(cfg.idioma);
         setFuenteLlamadas((cfg as unknown as { fuente_llamadas?: string }).fuente_llamadas === 'ghl' ? 'ghl' : 'twilio');
         setCategoriasLlamadas(Array.isArray(cfg.categorias_llamadas) ? cfg.categorias_llamadas : []);
+        setCategoriasCitas(Array.isArray(cfg.categorias_citas) ? cfg.categorias_citas : []);
         setGhlLocationId((cfg as unknown as { ghl_location_id?: string }).ghl_location_id ?? '');
         if (cfg.horario_laboral && Array.isArray(cfg.horario_laboral.dias)) {
           setHorarioLaboral(cfg.horario_laboral);
@@ -607,6 +625,48 @@ export default function SystemPage() {
     }
   }, [currentStep, coachHabilitado, coachLoading, loadCoachData]);
 
+  // Prompts de evaluación → Chats: cargar categorías (criterios custom) una vez
+  useEffect(() => {
+    if (currentStep === 1 && evalSeccion === 'chats' && !chatCatsLoaded) {
+      (async () => {
+        try {
+          const res = await fetch('/api/data/criterios-calificacion');
+          if (res.ok) {
+            const d = await res.json();
+            setChatCats(Array.isArray(d.categoriasCustom) ? d.categoriasCustom : []);
+            setChatCatsBase(d);
+          }
+        } catch { /* noop */ }
+        setChatCatsLoaded(true);
+      })();
+    }
+  }, [currentStep, evalSeccion, chatCatsLoaded]);
+
+  const saveChatCats = async (next: { slug: string; label: string; descripcion: string }[]) => {
+    setChatCats(next);
+    setChatCatsSaving(true);
+    try {
+      const base = (chatCatsBase ?? {}) as Record<string, unknown>;
+      const res = await fetch('/api/data/criterios-calificacion', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categorias: base.categorias ?? null,
+          canales: base.canales,
+          califica: base.califica,
+          promptCalificacionChats: base.promptCalificacionChats ?? null,
+          categoriasCustom: next,
+        }),
+      });
+      if (!res.ok) toast.error('No se pudieron guardar las categorías de chats');
+      else toast.success('Categorías de chats guardadas');
+    } catch {
+      toast.error('Error de red guardando categorías de chats');
+    }
+    setChatCatsSaving(false);
+  };
+
+
   const editParam = searchParams.get('edit');
   useEffect(() => {
     if (editParam && !loadingConfig && currentStep === 5) {
@@ -650,6 +710,7 @@ export default function SystemPage() {
         ghl_location_id: ghlLocationId.trim() || null,
         cerradas_cuentan_como_calificadas: cerradasCuentanComoCal,
         categorias_llamadas: categoriasLlamadas,
+        categorias_citas: categoriasCitas,
         secciones_ocultas: seccionesOcultas,
         ranking_metrica_base: rankingMetricaBase,
         horario_laboral: horarioLaboral,
@@ -841,8 +902,7 @@ export default function SystemPage() {
       <div className="p-3 md:p-4 max-w-3xl mx-auto space-y-4 text-sm min-w-0 max-w-full overflow-x-hidden">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2">
           {[
-            { id: 2, title: 'Eval. citas', icon: Video, color: 'purple' },
-            { id: 3, title: 'Eval. llamadas', icon: Phone, color: 'cyan' },
+            { id: 1, title: 'Prompts de evaluación', icon: Sparkles, color: 'purple' },
             { id: 4, title: 'Reglas de etiquetas', icon: Tag, color: 'amber' },
             { id: 5, title: 'Métricas custom', icon: BarChart3, color: 'green' },
             { id: 6, title: 'Metas', icon: Target, color: 'cyan' },
@@ -872,7 +932,114 @@ export default function SystemPage() {
         </div>
 
         <div className="rounded-xl p-4 min-h-[280px] section-futuristic border border-surface-500/80 shadow-[0_0_28px_-8px_rgba(0,240,255,0.06)]">
-          {currentStep === 2 && (
+          {currentStep === 1 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
+                <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40"><Sparkles className="w-5 h-5 text-accent-purple" /></div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Prompts de evaluación</h3>
+                  <p className="text-sm text-gray-400">Cómo evalúa la IA cada canal: chats, llamadas telefónicas y citas.</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {([['chats', 'Chats', MessageSquare], ['llamadas', 'Llamadas', Phone], ['citas', 'Citas', Video]] as const).map(([id, label, IconTab]) => (
+                  <button key={id} type="button" onClick={() => setEvalSeccion(id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${evalSeccion === id ? 'bg-accent-purple/20 text-accent-purple border-accent-purple/50' : 'bg-surface-700/60 text-gray-400 border-surface-500 hover:text-white'}`}>
+                    <IconTab className="w-4 h-4" /> {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {currentStep === 1 && evalSeccion === 'chats' && (
+            <div className="space-y-4">
+              {/* ── Transferir a un humano ── */}
+              <div className="rounded-xl border border-accent-cyan/30 bg-accent-cyan/5 p-4 space-y-4">
+                <h4 className="text-sm font-semibold text-accent-cyan">⚡ Transferir a un humano</h4>
+                <p className="text-sm text-gray-400">
+                  Se usa para medir el <span className="text-white font-medium">speed to lead en chat</span>: saber si
+                  contactan o no a cada lead, y cuánto tardan. Si el primero que responde es un bot, el tiempo real se
+                  mide cuando el asesor humano toma la conversación con el emoji.
+                </p>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 space-y-1">
+                    <span className="text-sm text-white font-medium">¿Tu equipo usa un chatbot antes de que atienda el asesor?</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setChatConfig((c) => ({ ...c, tiene_chatbot: !c.tiene_chatbot }))}
+                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${chatConfig.tiene_chatbot ? 'bg-accent-cyan' : 'bg-surface-500'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatConfig.tiene_chatbot ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                {chatConfig.tiene_chatbot && (
+                  <div className="rounded-lg bg-surface-700/60 border border-surface-500 p-3 space-y-1.5">
+                    <label className="text-xs font-medium text-gray-300 block">Emoji que usa el asesor para tomar el chat</label>
+                    <p className="text-[11px] text-gray-500">El asesor envía este emoji para tomar la conversación del chatbot. Ej: ⚡ o 👋</p>
+                    <input
+                      type="text"
+                      value={chatConfig.emoji_toma_atencion}
+                      onChange={(e) => setChatConfig((c) => ({ ...c, emoji_toma_atencion: e.target.value }))}
+                      placeholder="ej: ⚡ o 👋"
+                      className="w-32 rounded-lg bg-surface-600 border border-surface-500 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40"
+                      maxLength={8}
+                    />
+                    {chatConfig.emoji_toma_atencion && (
+                      <p className="text-[11px] text-gray-500">Emoji activo: <span className="text-2xl">{chatConfig.emoji_toma_atencion}</span></p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Categorías de chats ── */}
+              <div className="rounded-xl border border-accent-green/30 bg-accent-green/5 p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-accent-green">💬 Categorías de chats</h4>
+                <p className="text-sm text-gray-400">
+                  Define tus propias categorías y la IA clasificará cada conversación en una de ellas,
+                  <span className="text-white font-medium"> una vez al día</span> (análisis nocturno automático).
+                </p>
+                {!chatCatsLoaded ? (
+                  <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 text-gray-400 animate-spin" /></div>
+                ) : (
+                  <>
+                    {chatCats.length > 0 && (
+                      <ul className="space-y-2">
+                        {chatCats.map((cc) => (
+                          <li key={cc.slug} className="flex items-start justify-between gap-3 rounded-lg bg-surface-700/70 border border-surface-500 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm text-white font-medium">{cc.label}</p>
+                              <p className="text-[11px] text-gray-500">{cc.descripcion}</p>
+                            </div>
+                            <button type="button" disabled={chatCatsSaving} onClick={() => saveChatCats(chatCats.filter((c) => c.slug !== cc.slug))}
+                              className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 shrink-0" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="rounded-lg bg-surface-700/50 border border-surface-500 p-3 space-y-2">
+                      <input type="text" value={chatCatLabel} onChange={(e) => setChatCatLabel(e.target.value)} placeholder="Nombre de la categoría (ej: Interesado en compra)"
+                        className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
+                      <textarea value={chatCatDesc} onChange={(e) => setChatCatDesc(e.target.value)} placeholder="Descripción: cuándo un chat pertenece a esta categoría..."
+                        className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-green/40" />
+                      <button type="button" disabled={chatCatsSaving} onClick={() => {
+                        if (!chatCatLabel.trim()) { toast.error('El nombre es obligatorio'); return; }
+                        const slug = chatCatLabel.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+                        if (chatCats.some((c) => c.slug === slug)) { toast.error('Ya existe una categoría con ese nombre'); return; }
+                        saveChatCats([...chatCats, { slug, label: chatCatLabel.trim(), descripcion: chatCatDesc.trim() }]);
+                        setChatCatLabel(''); setChatCatDesc('');
+                      }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-green/20 text-accent-green border border-accent-green/40 text-xs font-semibold hover:bg-accent-green/30 disabled:opacity-50">
+                        <Plus className="w-3.5 h-3.5" /> Añadir categoría de chat
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {currentStep === 1 && evalSeccion === 'citas' && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
                 <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40"><Video className="w-5 h-5 text-accent-purple" /></div>
@@ -962,44 +1129,62 @@ export default function SystemPage() {
                 </div>
               </div>
 
-              {/* ── Delegación del chatbot al asesor (movido desde Chat Triggers) ── */}
-              <div className="rounded-xl border border-accent-cyan/30 bg-accent-cyan/5 p-4 space-y-4">
-                <h4 className="text-sm font-semibold text-accent-cyan flex items-center gap-2">⚡ Chatbot y delegación al asesor</h4>
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 space-y-1">
-                    <span className="text-sm text-white font-medium">¿Tu equipo usa un chatbot antes de que atienda el asesor?</span>
-                    <p className="text-[11px] text-gray-500">Si el primero que responde es un bot, el Speed to Lead real se mide cuando el asesor humano toma la conversación.</p>
+              {/* ── Categorías de citas ancladas a etiqueta GHL ── */}
+              <div className="rounded-xl border border-accent-purple/30 bg-accent-purple/5 p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-accent-purple">🏷️ Categorías de citas (por etiqueta del contacto)</h4>
+                <p className="text-sm text-gray-400">
+                  No todas las citas se evalúan igual: crea una categoría por tipo de contacto y ánclala a una
+                  etiqueta de GHL (ej. <span className="font-mono text-gray-300">lead nuevo</span>, <span className="font-mono text-gray-300">lead agendado</span>).
+                  Si el contacto tiene esa etiqueta, su cita se evalúa con el prompt de la categoría en vez del prompt general de arriba.
+                </p>
+                {categoriasCitas.length > 0 && (
+                  <ul className="space-y-2">
+                    {categoriasCitas.map((cc) => (
+                      <li key={cc.id} className="flex items-start justify-between gap-3 rounded-lg bg-surface-700/70 border border-surface-500 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-white font-medium">{cc.nombre} <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-mono">{cc.etiqueta}</span></p>
+                          <p className="text-[11px] text-gray-500 truncate max-w-xl">{cc.prompt}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button type="button" onClick={() => { setCcEditId(cc.id); setCcNombre(cc.nombre); setCcEtiqueta(cc.etiqueta); setCcPrompt(cc.prompt); }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => setCategoriasCitas((prev) => prev.filter((c) => c.id !== cc.id))} className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="rounded-lg bg-surface-700/50 border border-surface-500 p-3 space-y-2">
+                  <div className="grid md:grid-cols-2 gap-2">
+                    <input type="text" value={ccNombre} onChange={(e) => setCcNombre(e.target.value)} placeholder="Nombre (ej: Lead nuevo)"
+                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
+                    <input type="text" value={ccEtiqueta} onChange={(e) => setCcEtiqueta(e.target.value)} placeholder="Etiqueta GHL (ej: lead nuevo)"
+                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setChatConfig((c) => ({ ...c, tiene_chatbot: !c.tiene_chatbot }))}
-                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${chatConfig.tiene_chatbot ? 'bg-accent-cyan' : 'bg-surface-500'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatConfig.tiene_chatbot ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-                {chatConfig.tiene_chatbot && (
-                  <div className="rounded-lg bg-surface-700/60 border border-surface-500 p-3 space-y-1.5">
-                    <label className="text-xs font-medium text-gray-300 block">Emoji que usa el asesor para tomar el chat</label>
-                    <p className="text-[11px] text-gray-500">Cuando el asesor quiera tomar una conversación del chatbot, envía este emoji. El Speed to Lead se calcula desde el primer mensaje del lead hasta este emoji. Ej: ⚡ o 👋</p>
-                    <input
-                      type="text"
-                      value={chatConfig.emoji_toma_atencion}
-                      onChange={(e) => setChatConfig((c) => ({ ...c, emoji_toma_atencion: e.target.value }))}
-                      placeholder="ej: ⚡ o 👋"
-                      className="w-32 rounded-lg bg-surface-600 border border-surface-500 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40"
-                      maxLength={8}
-                    />
-                    {chatConfig.emoji_toma_atencion && (
-                      <p className="text-[11px] text-gray-500">Emoji activo: <span className="text-2xl">{chatConfig.emoji_toma_atencion}</span></p>
+                  <textarea value={ccPrompt} onChange={(e) => setCcPrompt(e.target.value)} placeholder="Prompt: cómo evaluar las citas de este tipo de contacto..."
+                    className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[70px] focus:ring-2 focus:ring-accent-purple/40" />
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => {
+                      if (!ccNombre.trim() || !ccEtiqueta.trim() || !ccPrompt.trim()) { toast.error('Nombre, etiqueta y prompt son obligatorios'); return; }
+                      if (ccEditId) {
+                        setCategoriasCitas((prev) => prev.map((c) => c.id === ccEditId ? { ...c, nombre: ccNombre.trim(), etiqueta: ccEtiqueta.trim(), prompt: ccPrompt.trim() } : c));
+                      } else {
+                        setCategoriasCitas((prev) => [...prev, { id: `cita-${Date.now()}`, nombre: ccNombre.trim(), etiqueta: ccEtiqueta.trim(), prompt: ccPrompt.trim() }]);
+                      }
+                      setCcEditId(null); setCcNombre(''); setCcEtiqueta(''); setCcPrompt('');
+                    }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30">
+                      <Plus className="w-3.5 h-3.5" /> {ccEditId ? 'Guardar cambios' : 'Añadir categoría'}
+                    </button>
+                    {ccEditId && (
+                      <button type="button" onClick={() => { setCcEditId(null); setCcNombre(''); setCcEtiqueta(''); setCcPrompt(''); }} className="text-xs text-gray-500 hover:text-gray-300">Cancelar</button>
                     )}
                   </div>
-                )}
+                  <p className="text-[10px] text-gray-500">Recuerda dar “Guardar” abajo para aplicar los cambios.</p>
+                </div>
               </div>
             </div>
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 1 && evalSeccion === 'llamadas' && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-accent-cyan/30">
                 <div className="rounded-lg p-2 bg-accent-cyan/20 border border-accent-cyan/40"><Phone className="w-5 h-5 text-accent-cyan" /></div>
@@ -1112,7 +1297,7 @@ export default function SystemPage() {
                     <div className="flex gap-2 justify-center flex-wrap">
                       <button type="button" onClick={() => {
                         setCatEditId(crypto.randomUUID());
-                        setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput('');
+                        setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); setCatEtiqueta('');
                       }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-accent-purple/20 text-accent-purple border border-accent-purple/40 hover:bg-accent-purple/30 transition-all">
                         <Plus className="w-4 h-4" /> Crear categoría
                       </button>
@@ -1182,6 +1367,7 @@ export default function SystemPage() {
                           setCatTemas([...cat.temas]);
                           setCatPrompt(cat.prompt);
                           setCatTemaInput('');
+                          setCatEtiqueta(cat.etiqueta ?? '');
                         }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan" title="Editar">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
@@ -1205,6 +1391,15 @@ export default function SystemPage() {
                       <input type="text" value={catNombre} onChange={(e) => setCatNombre(e.target.value)}
                         placeholder="Ej: Perfilamiento, Seguimiento, Cierre"
                         className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <label className="block text-[11px] font-medium text-accent-purple">Etiqueta de GHL (ancla de la categoría)</label>
+                        <HelpTooltip titulo="Etiqueta" contenido="Si el CONTACTO tiene esta etiqueta en GHL (ej. lead nuevo, lead perfilado, lead agendado), sus llamadas se evalúan con el prompt de esta categoría. Tiene prioridad sobre cualquier otra selección." />
+                      </div>
+                      <input type="text" value={catEtiqueta} onChange={(e) => setCatEtiqueta(e.target.value)}
+                        placeholder="Ej: lead nuevo"
+                        className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
                     </div>
                     <div>
                       <div className="flex items-center gap-1 mb-1">
@@ -1261,7 +1456,7 @@ export default function SystemPage() {
                       <p className="text-[10px] text-gray-500 mt-0.5 italic">Prompt = qué evaluar dentro de la llamada.</p>
                     </div>
                     <div className="flex gap-2 justify-end">
-                      <button type="button" onClick={() => { setCatEditId(null); setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); }}
+                      <button type="button" onClick={() => { setCatEditId(null); setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); setCatEtiqueta(''); }}
                         className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white border border-surface-500 hover:border-surface-400">
                         Cancelar
                       </button>
@@ -1269,11 +1464,11 @@ export default function SystemPage() {
                         if (!catNombre.trim()) { toast.error('El nombre es obligatorio'); return; }
                         const existing = categoriasLlamadas.find((c) => c.id === catEditId);
                         if (existing) {
-                          setCategoriasLlamadas((prev) => prev.map((c) => c.id === catEditId ? { ...c, nombre: catNombre.trim(), definicion: catDefinicion.trim() || undefined, temas: catTemas, prompt: catPrompt.trim() } : c));
+                          setCategoriasLlamadas((prev) => prev.map((c) => c.id === catEditId ? { ...c, nombre: catNombre.trim(), definicion: catDefinicion.trim() || undefined, temas: catTemas, prompt: catPrompt.trim(), etiqueta: catEtiqueta.trim() || undefined } : c));
                         } else {
-                          setCategoriasLlamadas((prev) => [...prev, { id: catEditId, nombre: catNombre.trim(), definicion: catDefinicion.trim() || undefined, temas: catTemas, prompt: catPrompt.trim() }]);
+                          setCategoriasLlamadas((prev) => [...prev, { id: catEditId, nombre: catNombre.trim(), definicion: catDefinicion.trim() || undefined, temas: catTemas, prompt: catPrompt.trim(), etiqueta: catEtiqueta.trim() || undefined }]);
                         }
-                        setCatEditId(null); setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput('');
+                        setCatEditId(null); setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); setCatEtiqueta('');
                       }} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-purple/20 text-accent-purple border border-accent-purple/40 hover:bg-accent-purple/30">
                         {categoriasLlamadas.some((c) => c.id === catEditId) ? 'Actualizar' : 'Agregar'}
                       </button>
@@ -1282,7 +1477,7 @@ export default function SystemPage() {
                 ) : categoriasLlamadas.length > 0 ? (
                   <button type="button" onClick={() => {
                     setCatEditId(crypto.randomUUID());
-                    setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput('');
+                    setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); setCatEtiqueta('');
                   }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-accent-purple/20 text-accent-purple border border-accent-purple/40 hover:bg-accent-purple/30 transition-all">
                     <Plus className="w-4 h-4" /> Añadir categoría
                   </button>

@@ -401,6 +401,18 @@ export interface CategoriaLlamada {
   definicion?: string;
   temas: string[];
   prompt: string;
+  /** Etiqueta de GHL que ancla esta categoría: si el contacto la tiene, la llamada se evalúa con este prompt */
+  etiqueta?: string;
+}
+
+// ─── Categorías de evaluación de citas (videollamadas) ────────────────────────
+
+export interface CategoriaCita {
+  id: string;
+  nombre: string;
+  /** Etiqueta de GHL que ancla esta categoría al tipo de contacto */
+  etiqueta: string;
+  prompt: string;
 }
 
 // ─── Closer merge rules ───────────────────────────────────────────────────────
@@ -457,6 +469,7 @@ export const cuentas = pgTable("cuentas", {
   razones_perdida_config: jsonb("razones_perdida_config").$type<RazonPerdidaOption[]>(),
   razones_perdida_data: jsonb("razones_perdida_data").$type<RazonPerdidaEntry[]>(),
   categorias_llamadas: jsonb("categorias_llamadas").$type<CategoriaLlamada[]>(),
+  categorias_citas: jsonb("categorias_citas").$type<CategoriaCita[]>(),
   exclusiones_coach: jsonb("exclusiones_coach").$type<ExclusionesCoach>(),
   gemini_api_key: text("gemini_api_key"),
   gemini_premium_status: text("gemini_premium_status").$type<"active" | "paused_invalid_key" | "paused_quota_exceeded" | null>(),
