@@ -462,13 +462,9 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch { /* ignore */ }
-    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    const protocol = window.location.protocol;
-    const port = window.location.port ? `:${window.location.port}` : "";
-    const loginUrl = isLocal
-      ? `${protocol}//localhost${port}/login`
-      : `${protocol}//${ROOT_DOMAIN}/login`;
-    window.location.href = loginUrl;
+    // Relativo: el login vive en el mismo host (panel único). El dominio raíz
+    // (ROOT_DOMAIN sin subdominio) no sirve la app.
+    window.location.href = "/login";
   };
 
   const logoutButton = (
