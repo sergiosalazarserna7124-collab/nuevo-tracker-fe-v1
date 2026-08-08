@@ -30,7 +30,10 @@ import {
   Activity,
   LogIn,
   Route,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
 import clsx from "clsx";
 import InsightsChat from "@/components/dashboard/InsightsChat";
 import ReportButton from "@/components/dashboard/ReportButton";
@@ -458,6 +461,16 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
     return pathname.includes(path);
   };
 
+  const { theme, toggleTheme } = useTheme();
+
+  const themeButton = (
+    <button type="button" onClick={toggleTheme}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:bg-surface-600 hover:text-white border border-transparent transition-all w-full">
+      {theme === "dark" ? <Sun className="w-5 h-5 shrink-0" /> : <Moon className="w-5 h-5 shrink-0" />}
+      {theme === "dark" ? "Modo claro" : "Modo oscuro"}
+    </button>
+  );
+
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -623,6 +636,7 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
           )}
           <AccountSwitcher currentSubdominio={currentSubdominio} />
           <SoloMisDatosToggle />
+          {themeButton}
           {logoutButton}
         </div>
       </aside>
@@ -664,6 +678,7 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
           )}
           <AccountSwitcher currentSubdominio={currentSubdominio} />
           <SoloMisDatosToggle />
+          {themeButton}
           {logoutButton}
         </div>
       </aside>

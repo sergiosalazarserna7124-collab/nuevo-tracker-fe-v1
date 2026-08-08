@@ -1,43 +1,50 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-@theme {
-  --color-surface-800: #0d1219;
-  --color-surface-700: #131b24;
-  --color-surface-600: #1a2433;
-  --color-surface-500: #1e2a3a;
-  --color-accent-cyan: #00f0ff;
-  --color-accent-purple: #b24bf3;
-  --color-accent-green: #00e676;
-  --color-accent-amber: #ffb020;
-  --color-accent-red: #ff6b7a;
-  --color-accent-blue: #4dabf7;
+/* ──────────────────────────────────────────────────────────────────────────
+   Tokens de Tailwind resueltos en runtime (theming por data-theme en <html>).
+   Los valores viven en las variables de :root / [data-theme="light"].
+   ────────────────────────────────────────────────────────────────────────── */
+@theme inline {
+  --color-surface-800: var(--surface-800);
+  --color-surface-700: var(--surface-700);
+  --color-surface-600: var(--surface-600);
+  --color-surface-500: var(--surface-500);
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-green: var(--accent-green);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-red: var(--accent-red);
+  --color-accent-blue: var(--accent-blue);
   /* Shadcn semantic tokens */
-  --color-background: #060b12;
-  --color-foreground: #f0f4f8;
-  --color-card: #0d1219;
-  --color-card-foreground: #f0f4f8;
-  --color-popover: #0d1219;
-  --color-popover-foreground: #f0f4f8;
-  --color-primary: #00f0ff;
-  --color-primary-foreground: #060b12;
-  --color-secondary: #1a2433;
-  --color-secondary-foreground: #f0f4f8;
-  --color-muted: #1a2433;
-  --color-muted-foreground: #8b9cb5;
-  --color-accent: #1a2433;
-  --color-accent-foreground: #f0f4f8;
-  --color-destructive: #ff6b7a;
-  --color-destructive-foreground: #f0f4f8;
-  --color-border: #1e2a3a;
-  --color-input: #1e2a3a;
-  --color-ring: #00f0ff;
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface-800);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface-800);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--accent-cyan);
+  --color-primary-foreground: var(--bg);
+  --color-secondary: var(--surface-600);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-600);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--surface-600);
+  --color-accent-foreground: var(--text);
+  --color-destructive: var(--accent-red);
+  --color-destructive-foreground: var(--text);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--accent-cyan);
+  --shadow-glow-cyan: var(--glow-cyan);
+  --shadow-glow-purple: var(--glow-purple);
+  --shadow-glow-green: var(--glow-green);
+  --shadow-card: var(--shadow-card-v);
+}
+
+@theme {
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-display: "Inter", system-ui, -apple-system, sans-serif;
-  --shadow-glow-cyan: 0 0 20px -4px rgba(0, 240, 255, 0.4), 0 0 40px -12px rgba(0, 240, 255, 0.2);
-  --shadow-glow-purple: 0 0 20px -4px rgba(178, 75, 243, 0.35);
-  --shadow-glow-green: 0 0 20px -4px rgba(0, 230, 118, 0.35);
-  --shadow-card: 0 4px 24px -4px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.04);
   --animate-fade-in: fadeIn 0.2s ease-out;
   --animate-glow-pulse: glowPulse 2s ease-in-out infinite;
 }
@@ -52,12 +59,20 @@
   50% { opacity: 0.7; }
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   TEMA OSCURO (default)
+   ────────────────────────────────────────────────────────────────────────── */
 :root {
+  color-scheme: dark;
   --bg: #060b12;
   --bg-gradient: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(0, 240, 255, 0.08), transparent 50%),
     linear-gradient(180deg, #060b12 0%, #0a1018 50%, #060b12 100%);
   --surface: #0d1219;
   --surface-hover: #131b24;
+  --surface-800: #0d1219;
+  --surface-700: #131b24;
+  --surface-600: #1a2433;
+  --surface-500: #1e2a3a;
   --border: #1e2a3a;
   --border-glow: rgba(0, 240, 255, 0.25);
   --text: #f0f4f8;
@@ -74,6 +89,48 @@
   --accent-red-dim: rgba(255, 107, 122, 0.15);
   --accent-blue: #4dabf7;
   --accent-blue-dim: rgba(77, 171, 247, 0.15);
+  --glow-cyan: 0 0 20px -4px rgba(0, 240, 255, 0.4), 0 0 40px -12px rgba(0, 240, 255, 0.2);
+  --glow-purple: 0 0 20px -4px rgba(178, 75, 243, 0.35);
+  --glow-green: 0 0 20px -4px rgba(0, 230, 118, 0.35);
+  --shadow-card-v: 0 4px 24px -4px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --scrollbar-thumb: linear-gradient(180deg, #1e2a3a 0%, #2a3a4e 100%);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   TEMA CLARO
+   ────────────────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2f5fa;
+  --bg-gradient: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(8, 145, 178, 0.07), transparent 50%),
+    linear-gradient(180deg, #f7fafd 0%, #eef2f8 50%, #f2f5fa 100%);
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9;
+  --surface-800: #ffffff;
+  --surface-700: #f1f5f9;
+  --surface-600: #e2e8f0;
+  --surface-500: #cbd5e1;
+  --border: #dbe3ee;
+  --border-glow: rgba(8, 145, 178, 0.3);
+  --text: #0f172a;
+  --text-muted: #5b6b82;
+  --accent-cyan: #0891b2;
+  --accent-cyan-dim: rgba(8, 145, 178, 0.12);
+  --accent-purple: #9333ea;
+  --accent-purple-dim: rgba(147, 51, 234, 0.1);
+  --accent-green: #059669;
+  --accent-green-dim: rgba(5, 150, 105, 0.1);
+  --accent-amber: #d97706;
+  --accent-amber-dim: rgba(217, 119, 6, 0.1);
+  --accent-red: #e11d48;
+  --accent-red-dim: rgba(225, 29, 72, 0.1);
+  --accent-blue: #2563eb;
+  --accent-blue-dim: rgba(37, 99, 235, 0.1);
+  --glow-cyan: 0 2px 12px -2px rgba(8, 145, 178, 0.25);
+  --glow-purple: 0 2px 12px -2px rgba(147, 51, 234, 0.2);
+  --glow-green: 0 2px 12px -2px rgba(5, 150, 105, 0.2);
+  --shadow-card-v: 0 2px 12px -2px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  --scrollbar-thumb: linear-gradient(180deg, #cbd5e1 0%, #b6c2d4 100%);
 }
 
 * { box-sizing: border-box; }
@@ -105,9 +162,10 @@ body {
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--surface); }
-::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #1e2a3a 0%, #2a3a4e 100%); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent-cyan); box-shadow: 0 0 10px var(--accent-cyan-dim); }
 
+/* ── Cards futuristas (oscuro) ── */
 .card-futuristic-cyan {
   background: linear-gradient(180deg, rgba(0, 240, 255, 0.07) 0%, rgba(0, 240, 255, 0.02) 35%, #080d12 100%);
   border: 1px solid rgba(0, 240, 255, 0.35);
@@ -145,6 +203,43 @@ body {
   box-shadow: 0 0 24px -8px rgba(0, 240, 255, 0.08), 0 4px 24px -4px rgba(0, 0, 0, 0.35);
 }
 
+/* ── Cards futuristas (claro) ── */
+[data-theme="light"] .card-futuristic-cyan {
+  background: linear-gradient(180deg, rgba(8, 145, 178, 0.06) 0%, rgba(8, 145, 178, 0.02) 35%, #ffffff 100%);
+  border: 1px solid rgba(8, 145, 178, 0.35);
+  box-shadow: 0 2px 12px -4px rgba(8, 145, 178, 0.2);
+}
+[data-theme="light"] .card-futuristic-purple {
+  background: linear-gradient(180deg, rgba(147, 51, 234, 0.06) 0%, rgba(147, 51, 234, 0.02) 35%, #ffffff 100%);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  box-shadow: 0 2px 12px -4px rgba(147, 51, 234, 0.15);
+}
+[data-theme="light"] .card-futuristic-green {
+  background: linear-gradient(180deg, rgba(5, 150, 105, 0.06) 0%, rgba(5, 150, 105, 0.02) 35%, #ffffff 100%);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  box-shadow: 0 2px 12px -4px rgba(5, 150, 105, 0.15);
+}
+[data-theme="light"] .card-futuristic-amber {
+  background: linear-gradient(180deg, rgba(217, 119, 6, 0.06) 0%, rgba(217, 119, 6, 0.02) 35%, #ffffff 100%);
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  box-shadow: 0 2px 12px -4px rgba(217, 119, 6, 0.15);
+}
+[data-theme="light"] .card-futuristic-red {
+  background: linear-gradient(180deg, rgba(225, 29, 72, 0.05) 0%, rgba(225, 29, 72, 0.02) 35%, #ffffff 100%);
+  border: 1px solid rgba(225, 29, 72, 0.3);
+  box-shadow: 0 2px 12px -4px rgba(225, 29, 72, 0.15);
+}
+[data-theme="light"] .card-futuristic-blue {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.06) 0%, rgba(37, 99, 235, 0.02) 35%, #ffffff 100%);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  box-shadow: 0 2px 12px -4px rgba(37, 99, 235, 0.15);
+}
+[data-theme="light"] .section-futuristic {
+  background: linear-gradient(180deg, rgba(8, 145, 178, 0.04) 0%, transparent 25%, #ffffff 100%);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 16px -6px rgba(15, 23, 42, 0.08);
+}
+
 .kpi-cyan { border-left-color: var(--accent-cyan); box-shadow: 0 0 20px -8px var(--accent-cyan-dim); }
 .kpi-purple { border-left-color: var(--accent-purple); box-shadow: 0 0 20px -8px var(--accent-purple-dim); }
 .kpi-green { border-left-color: var(--accent-green); box-shadow: 0 0 20px -8px var(--accent-green-dim); }
@@ -153,12 +248,62 @@ body {
 .kpi-blue { border-left-color: var(--accent-blue); box-shadow: 0 0 20px -8px var(--accent-blue-dim); }
 
 .rounded-xl.border-surface-500 {
-  border-color: rgba(30, 42, 58, 0.9);
-  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.35);
+  border-color: var(--border);
+  box-shadow: var(--shadow-card-v);
 }
 button.bg-accent-cyan:not(:disabled):hover, a.bg-accent-cyan:hover {
-  box-shadow: 0 0 20px -4px rgba(0, 240, 255, 0.5);
+  box-shadow: 0 0 20px -4px var(--accent-cyan-dim);
 }
 .text-accent-cyan:hover { filter: brightness(1.15); }
 .text-accent-purple:hover { filter: brightness(1.15); }
 .text-accent-green:hover { filter: brightness(1.15); }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   CAPA DE COMPATIBILIDAD — remapea clases con color "quemado" en modo claro
+   sin tocar los 130+ componentes. Los botones con fondo de color conservan
+   su texto blanco gracias al :not([class*="bg-"]).
+   ────────────────────────────────────────────────────────────────────────── */
+/* "Fondo de color real" = el texto blanco debe conservarse (botones sólidos,
+   banners con gradiente). Superficies, transparentes y hovers NO cuentan. */
+[data-theme="light"] .text-white:not([class*="bg-gradient"]):not([class*="bg-accent"]):not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-emerald"]):not([class*="bg-purple"]):not([class*="bg-violet"]):not([class*="bg-indigo"]):not([class*="bg-cyan"]):not([class*="bg-teal"]):not([class*="bg-amber"]):not([class*="bg-orange"]):not([class*="bg-pink"]):not([class*="bg-rose"]):not([class*="bg-fuchsia"]):not([class*="bg-sky"]):not([class*="bg-black"]) { color: var(--text); }
+[data-theme="light"] .text-gray-100:not([class*="bg-gradient"]):not([class*="bg-accent"]):not([class*="bg-blue"]):not([class*="bg-purple"]):not([class*="bg-black"]),
+[data-theme="light"] .text-gray-200:not([class*="bg-gradient"]):not([class*="bg-accent"]):not([class*="bg-blue"]):not([class*="bg-purple"]):not([class*="bg-black"]),
+[data-theme="light"] .text-gray-300:not([class*="bg-gradient"]):not([class*="bg-accent"]):not([class*="bg-blue"]):not([class*="bg-purple"]):not([class*="bg-black"]),
+[data-theme="light"] .text-slate-100:not([class*="bg-gradient"]):not([class*="bg-accent"]):not([class*="bg-black"]),
+[data-theme="light"] .text-slate-200:not([class*="bg-gradient"]):not([class*="bg-accent"]):not([class*="bg-black"]),
+[data-theme="light"] .text-slate-300:not([class*="bg-gradient"]):not([class*="bg-accent"]):not([class*="bg-black"]) { color: #334155; }
+[data-theme="light"] .text-gray-400,
+[data-theme="light"] .text-slate-400 { color: #52627a; }
+[data-theme="light"] .text-gray-500,
+[data-theme="light"] .text-slate-500 { color: #64748b; }
+
+/* Fondos oscuros de slate → superficies claras */
+[data-theme="light"] [class*="bg-slate-950"],
+[data-theme="light"] [class*="bg-slate-900"],
+[data-theme="light"] [class*="bg-slate-800"] { background-color: #ffffff; }
+[data-theme="light"] [class*="hover:bg-slate-700"]:hover,
+[data-theme="light"] [class*="hover:bg-slate-800"]:hover { background-color: #f1f5f9; }
+[data-theme="light"] [class*="border-slate-600"],
+[data-theme="light"] [class*="border-slate-700"],
+[data-theme="light"] [class*="border-slate-800"],
+[data-theme="light"] [class*="border-white/10"] { border-color: var(--border); }
+
+/* Gradiente de fondo del login (from/via/to slate) */
+[data-theme="light"] .from-slate-950 { --tw-gradient-from: #f7fafd; }
+[data-theme="light"] .via-slate-900 { --tw-gradient-via: #eef2f8; }
+[data-theme="light"] .to-slate-950 { --tw-gradient-to: #f2f5fa; }
+
+/* Hover del sidebar: texto oscuro sobre superficie clara */
+[data-theme="light"] [class*="hover:bg-surface"][class*="hover:text-white"]:hover { color: var(--text); }
+
+/* Texto blanco sobre superficies claras (chips, botones sobre surface-*) */
+[data-theme="light"] .text-white[class*="bg-surface"] { color: var(--text); }
+
+/* Logos con gradiente blanco → gradiente oscuro en claro */
+[data-theme="light"] .bg-clip-text.from-white { --tw-gradient-from: #0f172a; }
+[data-theme="light"] .bg-clip-text.to-gray-300 { --tw-gradient-to: #47566d; }
+
+/* Overlays de modales: más suaves en claro */
+[data-theme="light"] [class*="bg-black/60"],
+[data-theme="light"] [class*="bg-black/70"],
+[data-theme="light"] [class*="bg-black/80"] { background-color: rgba(15, 23, 42, 0.45); }
