@@ -125,6 +125,38 @@ export async function getAsesorData(
     .filter((n): n is string => !!n)
     .map((n) => n.toLowerCase());
 
+  const idCuentaStr = String(idCuenta);
+
+  // ── Leads cuyo dueño (registros_de_llamada.closer_mail) es el asesor ────────
+  // AUT-1902: log_llamadas es histórico inmutable — no se reescribe al asignar el
+  // contacto, así que los eventos previos a la asignación traen closer_mail NULL.
+  // Sin este fallback el asesor veía 0 leads/0 llamadas aunque el ranking (y el
+  // dinero entrante, atribuido vía registros_de_llamada) sí le contaran el lead.
+  const ownedLeadRefs = emailsLower.length > 0
+    ? await db.execute(sql`
+        SELECT DISTINCT ghl_contact_id, mail_lead, phone_raw_format
+        FROM registros_de_llamada
+        WHERE id_cuenta = ${idCuentaStr}
+          AND LOWER(TRIM(COALESCE(closer_mail, ''))) IN (${sql.join(emailsLower.map((e) => sql`${e}`), sql`, `)})
+      `).then((r) => r.rows as Array<{ ghl_contact_id: string | null; mail_lead: string | null; phone_raw_format: string | null }>)
+    : [];
+  const ownedContactIds = [...new Set(ownedLeadRefs.map((r) => r.ghl_contact_id?.trim()).filter((v): v is string => !!v))];
+  const ownedMails = [...new Set(ownedLeadRefs.map((r) => r.mail_lead?.trim().toLowerCase()).filter((v): v is string => !!v))];
+  const ownedPhones = [...new Set(ownedLeadRefs.map((r) => r.phone_raw_format?.trim()).filter((v): v is string => !!v))];
+
+  /** Condición SQL "este evento pertenece a un lead del asesor" (o al asesor directo). */
+  const ownedLeadMatch = (
+    contactCol: ReturnType<typeof sql> | null,
+    mailCol: ReturnType<typeof sql> | null,
+    phoneCol: ReturnType<typeof sql> | null,
+  ) => {
+    const parts = [];
+    if (contactCol && ownedContactIds.length > 0) parts.push(sql`TRIM(COALESCE(${contactCol}, '')) IN (${sql.join(ownedContactIds.map((v) => sql`${v}`), sql`, `)})`);
+    if (mailCol && ownedMails.length > 0) parts.push(sql`LOWER(TRIM(COALESCE(${mailCol}, ''))) IN (${sql.join(ownedMails.map((v) => sql`${v}`), sql`, `)})`);
+    if (phoneCol && ownedPhones.length > 0) parts.push(sql`TRIM(COALESCE(${phoneCol}, '')) IN (${sql.join(ownedPhones.map((v) => sql`${v}`), sql`, `)})`);
+    return parts.length > 0 ? sql`(${sql.join(parts, sql` OR `)})` : null;
+  };
+
   // ── LLAMADAS: log_llamadas ──────────────────────────────────────────────────
   const callConditions = [
     eq(logLlamadas.id_cuenta, idCuenta),
@@ -134,9 +166,16 @@ export async function getAsesorData(
     sql`${logLlamadas.tipo_evento} NOT IN ('pdte', 'contacto_creado')`,
   ];
   if (emailsLower.length > 0) {
-    callConditions.push(
-      sql`LOWER(TRIM(COALESCE(${logLlamadas.closer_mail}, ''))) IN (${sql.join(emailsLower.map((e) => sql`${e}`), sql`, `)})`,
+    const byCloser = sql`LOWER(TRIM(COALESCE(${logLlamadas.closer_mail}, ''))) IN (${sql.join(emailsLower.map((e) => sql`${e}`), sql`, `)})`;
+    // Solo caen al dueño del lead los eventos SIN closer propio: si la llamada dice
+    // quién la hizo, esa atribución manda.
+    const sinCloser = sql`COALESCE(TRIM(${logLlamadas.closer_mail}), '') = ''`;
+    const owned = ownedLeadMatch(
+      sql`${logLlamadas.contact_id_ghl}`,
+      sql`${logLlamadas.mail_lead}`,
+      sql`${logLlamadas.phone}`,
     );
+    callConditions.push(owned ? sql`(${byCloser} OR (${sinCloser} AND ${owned}))` : byCloser);
   }
 
   const callRows = await db
@@ -146,7 +185,6 @@ export async function getAsesorData(
     .orderBy(sql`${logLlamadas.ts} DESC`);
 
   // ── LLAMADAS: registros_de_llamada CON filtro de fecha ────────────────────
-  const idCuentaStr = String(idCuenta);
   const regRows = await (async () => {
     const baseCond = and(
       eq(registrosDeLlamada.id_cuenta, idCuentaStr),
@@ -184,9 +222,14 @@ export async function getAsesorData(
     const agendaConditions = [eq(resumenesDiariosAgendas.id_cuenta, idCuenta), fechaFilterAgendas];
     if (emailsLower.length > 0 || nombresFromEmails.length > 0) {
       const allCloserValues = [...emailsLower, ...nombresFromEmails];
-      agendaConditions.push(
-        sql`LOWER(TRIM(COALESCE(${resumenesDiariosAgendas.closer}, ''))) IN (${sql.join(allCloserValues.map((v) => sql`${v}`), sql`, `)})`,
+      const byCloser = sql`LOWER(TRIM(COALESCE(${resumenesDiariosAgendas.closer}, ''))) IN (${sql.join(allCloserValues.map((v) => sql`${v}`), sql`, `)})`;
+      const sinCloser = sql`COALESCE(TRIM(${resumenesDiariosAgendas.closer}), '') = ''`;
+      const owned = ownedLeadMatch(
+        sql`${resumenesDiariosAgendas.ghl_contact_id}`,
+        sql`${resumenesDiariosAgendas.email_lead}`,
+        null,
       );
+      agendaConditions.push(owned ? sql`(${byCloser} OR (${sinCloser} AND ${owned}))` : byCloser);
     }
 
     return db.select().from(resumenesDiariosAgendas).where(and(...agendaConditions));
@@ -203,9 +246,10 @@ export async function getAsesorData(
     ? [...emailsLower, ...nombresFromEmails]
     : [];
   if (chatCloserValues.length > 0) {
-    chatConditions.push(
-      sql`LOWER(TRIM(COALESCE(${chatsLogs.notas_extra}, ''))) IN (${sql.join(chatCloserValues.map((v) => sql`${v}`), sql`, `)})`,
-    );
+    const byCloser = sql`LOWER(TRIM(COALESCE(${chatsLogs.notas_extra}, ''))) IN (${sql.join(chatCloserValues.map((v) => sql`${v}`), sql`, `)})`;
+    const sinCloser = sql`COALESCE(TRIM(${chatsLogs.notas_extra}), '') = '' AND COALESCE(TRIM(${chatsLogs.asesor_asignado}), '') = ''`;
+    const owned = ownedLeadMatch(sql`${chatsLogs.id_lead}`, null, null);
+    chatConditions.push(owned ? sql`(${byCloser} OR (${sinCloser} AND ${owned}))` : byCloser);
   }
   const chatsRows = await db.select().from(chatsLogs).where(and(...chatConditions));
 

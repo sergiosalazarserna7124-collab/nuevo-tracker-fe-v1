@@ -294,14 +294,21 @@ export async function getDashboard(
           AND fecha_evento <= ${toDate}`,
   ).then((r) => Number((r.rows[0] as { total?: number })?.total ?? 0));
 
-  // Contactos 'no_trackeado' (etiqueta no_trackearlead): nunca fueron leads
-  // (amigo del cliente, consulta random) → se excluyen de TODO el dashboard.
+  // Contactos fuera de métricas → se excluyen de TODO el dashboard:
+  //  - 'no_trackeado' (etiqueta no_trackearlead): nunca fueron leads (amigo del
+  //    cliente, consulta random).
+  //  - excluido_metricas = true (etiqueta descartar-lead o descarte manual).
+  // AUT-1902: antes solo se filtraba 'no_trackeado', así que un lead descartado
+  // seguía sumando llamadas y dinero entrante en el ranking mientras la página
+  // de asesor sí lo excluía — de ahí que las dos vistas no cuadraran.
+  // Los descartados siguen contando en su métrica propia ("Leads descartados",
+  // descartadosPromise), que es justo lo que esa métrica mide.
   // log_llamadas no tiene bandera de exclusión propia, así que se resuelve el
   // set de contactos desde registros_de_llamada y se filtra en memoria.
   const noTrackeadosPromise = db.execute(
     sql`SELECT DISTINCT ghl_contact_id FROM registros_de_llamada
         WHERE id_cuenta = ${String(idCuenta)}
-          AND calificacion_manual = 'no_trackeado'
+          AND (calificacion_manual = 'no_trackeado' OR excluido_metricas IS TRUE)
           AND ghl_contact_id IS NOT NULL`,
   ).then((r) => new Set(r.rows.map((x) => String((x as { ghl_contact_id: string }).ghl_contact_id))));
 
@@ -373,12 +380,13 @@ export async function getDashboard(
     ...adsCamposExtra, // frequency, unique_ctr etc. (rendered as numbers, not pctFmt)
   };
 
-  // Sacar contactos no-trackeados de llamadas y eventos de lead nuevo — nunca
-  // fueron leads, no deben contar ni en "leads generados" ni en llamadas.
-  // (Las agendas y chats ya vienen filtrados por excluida_dashboard en su query.)
+  // Sacar contactos fuera de métricas (no-trackeados y descartados) de llamadas,
+  // agendas y eventos de lead nuevo: no deben contar ni en "leads generados", ni
+  // en llamadas, ni en citas, ni en dinero entrante.
+  // (Las agendas y chats además ya vienen filtrados por excluida_dashboard.)
   const esNoTrackeado = (contactId: string | null | undefined) =>
     !!contactId && noTrackeadoContactIds.has(contactId.trim());
-  let filteredAgendas = agendas;
+  let filteredAgendas = agendas.filter((a) => !esNoTrackeado(a.ghl_contact_id));
   let filteredCalls = calls.filter((c) => !esNoTrackeado(c.contact_id_ghl));
   let filteredNewLeadEvents = newLeadEvents.filter((nl) => !esNoTrackeado(nl.contact_id_ghl));
   if (filterTags && filterTags.length > 0) {
@@ -638,7 +646,7 @@ export async function getDashboard(
       AND NOT EXISTS (
         SELECT 1 FROM registros_de_llamada r
         WHERE r.id_cuenta = ${String(idCuenta)} AND r.ghl_contact_id = o.ghl_contact_id
-          AND r.calificacion_manual = 'no_trackeado'
+          AND (r.calificacion_manual = 'no_trackeado' OR r.excluido_metricas = true)
       )
   `);
   const finRow = finRes.rows[0] as { apartados?: number; monto_apartado?: string | number; ventas?: number; monto_vendido?: string | number } | undefined;
@@ -702,6 +710,42 @@ export async function getDashboard(
     .from(usuariosDashboard)
     .where(and(eq(usuariosDashboard.id_cuenta, idCuenta), isNotNull(usuariosDashboard.nombre_closer)));
 
+  // AUT-1902: dueño del lead (asesor asignado en registros_de_llamada). log_llamadas
+  // NO se reescribe al reasignar un contacto (histórico inmutable por llamada —
+  // ver handleContactUpdate en el Cerebro), así que un evento que llegó antes de la
+  // asignación queda con closer_mail NULL y su actividad caía en "sin asignar".
+  // El dinero, en cambio, SÍ se atribuye vía registros_de_llamada ⇒ aparecían filas
+  // de asesor con dinero entrante pero 0 leads / 0 llamadas. Este mapa es el fallback
+  // que unifica ambos lados: si el evento no dice quién lo hizo, cuenta para el
+  // asesor dueño del lead — que es la misma fuente que usan dinero y speed to lead.
+  const leadOwnerRows = (await db.execute(sql`
+    SELECT ghl_contact_id, mail_lead, phone_raw_format, closer_mail, nombre_closer
+    FROM registros_de_llamada
+    WHERE id_cuenta = ${String(idCuenta)}
+      AND (closer_mail IS NOT NULL OR nombre_closer IS NOT NULL)
+  `)).rows as Array<{
+    ghl_contact_id: string | null; mail_lead: string | null; phone_raw_format: string | null;
+    closer_mail: string | null; nombre_closer: string | null;
+  }>;
+
+  type LeadOwner = { mail: string | null; nombre: string | null };
+  const leadOwnerByRef: Record<string, LeadOwner> = {};
+  for (const r of leadOwnerRows) {
+    const owner: LeadOwner = { mail: r.closer_mail, nombre: r.nombre_closer };
+    for (const ref of [r.ghl_contact_id?.trim(), r.mail_lead?.trim().toLowerCase(), r.phone_raw_format?.trim()]) {
+      if (ref && !leadOwnerByRef[ref]) leadOwnerByRef[ref] = owner;
+    }
+  }
+  const leadOwner = (...refs: Array<string | null | undefined>): LeadOwner | null => {
+    for (const ref of refs) {
+      const k = ref?.trim();
+      if (!k) continue;
+      const hit = leadOwnerByRef[k] ?? leadOwnerByRef[k.toLowerCase()];
+      if (hit) return hit;
+    }
+    return null;
+  };
+
   const nombreToEmail: Record<string, string> = {};
   for (const u of usuariosRows) {
     if (u.nombre_closer && u.email) {
@@ -727,6 +771,14 @@ export async function getDashboard(
       }
     }
   }
+  for (const r of leadOwnerRows) {
+    if (r.nombre_closer && r.closer_mail) {
+      const nameKey = r.nombre_closer.trim().toLowerCase();
+      if (!nombreToEmail[nameKey]) {
+        nombreToEmail[nameKey] = r.closer_mail.trim().toLowerCase();
+      }
+    }
+  }
 
   // Normalizar key de asesor: email lowercase > nombre→email lookup > nombre lowercase
   const normAdvisorKey = (mail?: string | null, name?: string | null) => {
@@ -740,6 +792,32 @@ export async function getDashboard(
     }
     return "sin asignar";
   };
+
+  // Igual que normAdvisorKey pero, si el evento no trae closer, cae al asesor
+  // dueño del lead (registros_de_llamada) antes de mandarlo a "sin asignar".
+  const advisorKeyForLead = (
+    mail: string | null | undefined,
+    name: string | null | undefined,
+    ...leadRefs: Array<string | null | undefined>
+  ) => {
+    if (mail?.trim() || name?.trim()) return normAdvisorKey(mail, name);
+    const owner = leadOwner(...leadRefs);
+    return normAdvisorKey(owner?.mail, owner?.nombre);
+  };
+
+  // Nombre visible por key de asesor: el ranking puede crear filas que solo tienen
+  // dinero (sin llamadas ni citas propias); sin esto mostrarían el email crudo.
+  const displayNameByKey: Record<string, string> = {};
+  const rememberDisplayName = (key: string, nombre?: string | null) => {
+    const n = nombre?.trim();
+    if (n && !displayNameByKey[key]) displayNameByKey[key] = n;
+  };
+  for (const r of leadOwnerRows) {
+    rememberDisplayName(normAdvisorKey(r.closer_mail, r.nombre_closer), r.nombre_closer);
+  }
+  for (const u of usuariosRows) {
+    if (u.email) rememberDisplayName(u.email.trim().toLowerCase(), u.nombre_closer);
+  }
 
   // ── Datos extra del ranking: leads por CHAT y dinero entrante ──────────────
   // Un lead atendido solo por chat también es un "lead trabajado" del asesor.
@@ -775,7 +853,11 @@ export async function getDashboard(
   for (const ch of chatAdvisorRows) {
     if (esNoTrackeado(ch.id_lead)) continue;
     const raw = (ch.asesor_asignado ?? "").trim();
-    const key = normAdvisorKey(raw.includes("@") ? raw : null, raw.includes("@") ? null : raw || null);
+    const key = advisorKeyForLead(
+      raw.includes("@") ? raw : null,
+      raw.includes("@") ? null : raw || null,
+      ch.id_lead,
+    );
     const mapa = chatLeadsByAdvisor[key] ?? new Map();
     mapa.set(ch.id_lead.trim(), { nombre: ch.nombre_lead, email: null, telefono: null, ultimaActividad: toDateString(ch.ts) });
     chatLeadsByAdvisor[key] = mapa;
@@ -806,7 +888,7 @@ export async function getDashboard(
 
   const advisorMap: Record<string, { calls: typeof filteredCalls; agendas: typeof filteredAgendas }> = {};
   for (const c of filteredCalls) {
-    const key = normAdvisorKey(c.closer_mail, c.nombre_closer);
+    const key = advisorKeyForLead(c.closer_mail, c.nombre_closer, c.contact_id_ghl, c.mail_lead, c.phone);
     if (!advisorMap[key]) advisorMap[key] = { calls: [], agendas: [] };
     advisorMap[key].calls.push(c);
   }
@@ -814,9 +896,11 @@ export async function getDashboard(
     // Normalizar el closer de la agenda: si es un email úsalo directo,
     // si es un nombre resolverlo via nombreToEmail para unificarlo con las llamadas.
     const closerRaw = (a.closer ?? "").trim();
-    const closerKey = normAdvisorKey(
+    const closerKey = advisorKeyForLead(
       closerRaw.includes("@") ? closerRaw : null,
       closerRaw.includes("@") ? null : closerRaw,
+      a.ghl_contact_id,
+      a.email_lead,
     );
     // Intentar emparejar con key existente (por si llegó como nombre y las llamadas son por email)
     const existingKey = Object.keys(advisorMap).find(k => k === closerKey) ?? closerKey;
@@ -998,8 +1082,8 @@ export async function getDashboard(
       };
 
       return {
-        advisorName: ac[0]?.nombre_closer ?? aa[0]?.closer ?? key,
-        advisorEmail: ac[0]?.closer_mail ?? null,
+        advisorName: ac[0]?.nombre_closer ?? aa[0]?.closer ?? displayNameByKey[key] ?? key,
+        advisorEmail: ac[0]?.closer_mail ?? (key.includes("@") ? key : null),
         totalLeads: aLeads,
         leadsGenerados: leadsGeneradosDetalle.length,
         leadsConActividad: leadsConActividadDetalle.length,
