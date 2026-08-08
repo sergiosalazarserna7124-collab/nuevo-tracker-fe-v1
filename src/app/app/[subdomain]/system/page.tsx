@@ -28,7 +28,7 @@ import { getMetricasQueDependenDe, DEFAULT_METRICAS_CONFIG, DEFAULT_EMBUDO_CONFI
 import { HORARIO_LABORAL_DEFAULT, type HorarioLaboral } from '@/lib/business-hours';
 import MetricaEditSheet from '@/components/dashboard/MetricaEditSheet';
 import DashboardsManager from '@/components/dashboard/DashboardsManager';
-import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, CategoriaCita, CategoriaChat, CategoriaLead, ReglaEtapaLead, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
+import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, CategoriaCita, CategoriaChat, CategoriaLead, ReglaEtapaLead, CoachEtapaLead, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
 import ChatRecoverySection from '@/features/quick-triggers/chat-recovery/ChatRecoverySection';
 import HelpTooltip from '@/components/dashboard/HelpTooltip';
 import PremiumGate from '@/components/dashboard/PremiumGate';
@@ -393,6 +393,13 @@ export default function SystemPage() {
   const [clReglas, setClReglas] = useState<ReglaEtapaLead[]>([]);
   const [clReglaTag, setClReglaTag] = useState('');
   const [clReglaCond, setClReglaCond] = useState('');
+  // Coach de ventas de la etapa (qué debe pasar + evaluación pasó/no pasó)
+  const [clCoachCriterios, setClCoachCriterios] = useState('');
+  const [clCoachUmbral, setClCoachUmbral] = useState(70);
+  const [clCoachTagsCumplido, setClCoachTagsCumplido] = useState<string[]>([]);
+  const [clCoachTagsNoCumplido, setClCoachTagsNoCumplido] = useState<string[]>([]);
+  const [clCoachTagCumplInput, setClCoachTagCumplInput] = useState('');
+  const [clCoachTagNoCumplInput, setClCoachTagNoCumplInput] = useState('');
   const [clEditId, setClEditId] = useState<string | null>(null);
 
   // Coach de ventas state
@@ -984,7 +991,7 @@ export default function SystemPage() {
                 <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40"><Sparkles className="w-5 h-5 text-accent-purple" /></div>
                 <div>
                   <h3 className="text-lg font-semibold text-white">Categorías de leads</h3>
-                  <p className="text-sm text-gray-400">Todo se evalúa en conjunto: la etiqueta del contacto define su etapa, y chats, llamadas y citas se evalúan con el prompt de esa etapa.</p>
+                  <p className="text-sm text-gray-400">Todo se evalúa en conjunto por contacto: la etiqueta del contacto define su etapa, y sus chats, llamadas y citas (unidos por el contact ID) se evalúan juntos con el guión, las reglas de etiquetas y el coach de ventas de esa etapa.</p>
                 </div>
               </div>
 
@@ -1020,6 +1027,7 @@ export default function SystemPage() {
                           <p className="text-sm text-white font-semibold">{cl.nombre}
                             <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-mono">{cl.etiqueta}</span>
                             {(cl.reglas_etiquetas?.length ?? 0) > 0 && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent-amber/20 text-accent-amber border border-accent-amber/30">{cl.reglas_etiquetas!.length} regla{cl.reglas_etiquetas!.length !== 1 ? 's' : ''}</span>}
+                            {cl.coach?.criterios && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent-green/20 text-accent-green border border-accent-green/30">🎯 coach {cl.coach.umbral ?? 70}%</span>}
                           </p>
                           <p className="text-[11px] text-gray-500 truncate max-w-2xl mt-0.5">{cl.prompt}</p>
                         </div>
@@ -1028,6 +1036,11 @@ export default function SystemPage() {
                             setClEditId(cl.id); setClNombre(cl.nombre); setClEtiqueta(cl.etiqueta);
                             setClPrompt(cl.prompt); setClPromptResumen(cl.prompt_resumen ?? '');
                             setClReglas(cl.reglas_etiquetas ?? []);
+                            setClCoachCriterios(cl.coach?.criterios ?? '');
+                            setClCoachUmbral(cl.coach?.umbral ?? 70);
+                            setClCoachTagsCumplido(cl.coach?.tags_cumplido ?? []);
+                            setClCoachTagsNoCumplido(cl.coach?.tags_no_cumplido ?? []);
+                            setClCoachTagCumplInput(''); setClCoachTagNoCumplInput('');
                           }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
                           <button type="button" onClick={() => setCategoriasLeads((prev) => prev.filter((c) => c.id !== cl.id))}
                             className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -1065,7 +1078,7 @@ export default function SystemPage() {
                   )}
                 </div>
                 <div>
-                  <label className="text-[11px] font-medium text-accent-purple block mb-1">Prompt de evaluación — ¿qué debe pasar en esta etapa?</label>
+                  <label className="text-[11px] font-medium text-accent-purple block mb-1">Guión de evaluación de la etapa</label>
                   <textarea value={clPrompt} onChange={(e) => setClPrompt(e.target.value)}
                     placeholder="Ej: En esta etapa deben enviarse mensajes de presentación; si se llama y no contesta, mandar seguimiento (mínimo 3 intentos). El objetivo es agendar un zoom. Evalúa cada chat, llamada o cita según esto..."
                     className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[90px] focus:ring-2 focus:ring-accent-purple/40" />
@@ -1108,18 +1121,73 @@ export default function SystemPage() {
                   </button>
                 </div>
 
+                {/* Coach de ventas de ESTA etapa */}
+                <div className="rounded-lg bg-surface-700/50 border border-accent-green/30 p-3 space-y-2.5">
+                  <p className="text-xs font-semibold text-accent-green">🎯 Coach de ventas de esta etapa</p>
+                  <p className="text-[11px] text-gray-500">Describe qué DEBE pasar para dar por cumplida esta etapa. El sistema evalúa en conjunto todas las interacciones del contacto (chats, llamadas y citas, unidas por el contact ID) y decide si pasó o no pasó.</p>
+                  <div>
+                    <label className="text-[11px] font-medium text-accent-green block mb-1">¿Qué debe pasar en esta etapa? (criterios de cumplimiento)</label>
+                    <textarea value={clCoachCriterios} onChange={(e) => setClCoachCriterios(e.target.value)}
+                      placeholder="Ej: El asesor presentó la propuesta, resolvió objeciones de precio y dejó agendado el siguiente paso (zoom o cierre). Se considera cumplida si, entre todos los chats/llamadas/citas del contacto, se cubrieron estos puntos."
+                      className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-xs text-white min-h-[70px] focus:ring-2 focus:ring-accent-green/40" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-accent-green block mb-1">Umbral de cumplimiento: {clCoachUmbral}%</label>
+                    <div className="flex items-center gap-3">
+                      <input type="range" min={0} max={100} step={5} value={clCoachUmbral} onChange={(e) => setClCoachUmbral(Number(e.target.value))} className="flex-1 accent-accent-green" />
+                      <input type="number" min={0} max={100} value={clCoachUmbral} onChange={(e) => setClCoachUmbral(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} className="w-16 rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white text-center focus:ring-2 focus:ring-accent-green/40" />
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">Etiquetas si <span className="text-accent-green">pasó</span></label>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {clCoachTagsCumplido.map((tag, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-accent-green/15 text-accent-green border border-accent-green/30 font-mono">
+                            {tag}
+                            <button type="button" onClick={() => setClCoachTagsCumplido((prev) => prev.filter((_, j) => j !== i))} className="hover:text-red-400"><X className="w-2.5 h-2.5" /></button>
+                          </span>
+                        ))}
+                      </div>
+                      <input type="text" value={clCoachTagCumplInput} onChange={(e) => setClCoachTagCumplInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const t = clCoachTagCumplInput.trim(); if (t && !clCoachTagsCumplido.includes(t)) setClCoachTagsCumplido((prev) => [...prev, t]); setClCoachTagCumplInput(''); } }}
+                        placeholder="Etiqueta y Enter (ej: etapa_cumplida)"
+                        className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white font-mono focus:ring-2 focus:ring-accent-green/40" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">Etiquetas si <span className="text-red-400">no pasó</span></label>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {clCoachTagsNoCumplido.map((tag, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-red-500/15 text-red-400 border border-red-500/30 font-mono">
+                            {tag}
+                            <button type="button" onClick={() => setClCoachTagsNoCumplido((prev) => prev.filter((_, j) => j !== i))} className="hover:text-red-300"><X className="w-2.5 h-2.5" /></button>
+                          </span>
+                        ))}
+                      </div>
+                      <input type="text" value={clCoachTagNoCumplInput} onChange={(e) => setClCoachTagNoCumplInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const t = clCoachTagNoCumplInput.trim(); if (t && !clCoachTagsNoCumplido.includes(t)) setClCoachTagsNoCumplido((prev) => [...prev, t]); setClCoachTagNoCumplInput(''); } }}
+                        placeholder="Etiqueta y Enter (ej: etapa_incumplida)"
+                        className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white font-mono focus:ring-2 focus:ring-red-500/40" />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2 pt-1">
                   <button type="button" onClick={() => {
                     if (!clNombre.trim() || !clEtiqueta.trim() || !clPrompt.trim()) { toast.error('Nombre, etiqueta y prompt de evaluación son obligatorios'); return; }
-                    const item = { id: clEditId ?? `lead-${Date.now()}`, nombre: clNombre.trim(), etiqueta: clEtiqueta.trim(), prompt: clPrompt.trim(), prompt_resumen: clPromptResumen.trim() || undefined, reglas_etiquetas: clReglas };
+                    const coach: CoachEtapaLead | undefined = clCoachCriterios.trim()
+                      ? { criterios: clCoachCriterios.trim(), umbral: clCoachUmbral, tags_cumplido: clCoachTagsCumplido, tags_no_cumplido: clCoachTagsNoCumplido }
+                      : undefined;
+                    const item: CategoriaLead = { id: clEditId ?? `lead-${Date.now()}`, nombre: clNombre.trim(), etiqueta: clEtiqueta.trim(), prompt: clPrompt.trim(), prompt_resumen: clPromptResumen.trim() || undefined, reglas_etiquetas: clReglas, coach };
                     if (clEditId) setCategoriasLeads((prev) => prev.map((c) => c.id === clEditId ? item : c));
                     else setCategoriasLeads((prev) => [...prev, item]);
                     setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]); setClReglaTag(''); setClReglaCond('');
+                    setClCoachCriterios(''); setClCoachUmbral(70); setClCoachTagsCumplido([]); setClCoachTagsNoCumplido([]); setClCoachTagCumplInput(''); setClCoachTagNoCumplInput('');
                   }} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-purple text-white text-sm font-semibold hover:bg-accent-purple/90">
                     <Plus className="w-4 h-4" /> {clEditId ? 'Guardar etapa' : 'Añadir etapa'}
                   </button>
                   {clEditId && (
-                    <button type="button" onClick={() => { setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]); }}
+                    <button type="button" onClick={() => { setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]); setClCoachCriterios(''); setClCoachUmbral(70); setClCoachTagsCumplido([]); setClCoachTagsNoCumplido([]); setClCoachTagCumplInput(''); setClCoachTagNoCumplInput(''); }}
                       className="text-xs text-gray-500 hover:text-gray-300">Cancelar</button>
                   )}
                   <p className="text-[10px] text-gray-500 ml-auto">Recuerda dar “Guardar” abajo para aplicar.</p>

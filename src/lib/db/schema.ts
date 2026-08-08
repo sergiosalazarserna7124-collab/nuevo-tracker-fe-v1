@@ -435,6 +435,16 @@ export interface ReglaEtapaLead {
   condition: string;
 }
 
+// Coach de ventas de la etapa: define qué DEBE pasar en esta etapa/categoría.
+// El sistema evalúa TODAS las interacciones del contacto en conjunto (chats,
+// llamadas y citas, unidas por contact_id) y decide si pasó o no pasó.
+export interface CoachEtapaLead {
+  criterios: string;            // qué debe pasar en esta etapa para considerarla cumplida
+  umbral?: number;              // % mínimo de cumplimiento para "pasó" (default 70)
+  tags_cumplido?: string[];     // etiquetas GHL a poner si pasó
+  tags_no_cumplido?: string[];  // etiquetas GHL a poner si no pasó
+}
+
 export interface CategoriaLead {
   id: string;
   nombre: string;
@@ -442,6 +452,7 @@ export interface CategoriaLead {
   prompt: string;
   prompt_resumen?: string;
   reglas_etiquetas?: ReglaEtapaLead[];
+  coach?: CoachEtapaLead;
 }
 
 // ─── Closer merge rules ───────────────────────────────────────────────────────
