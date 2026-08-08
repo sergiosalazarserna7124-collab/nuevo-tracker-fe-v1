@@ -247,9 +247,14 @@ export async function getAsesorData(
     ? [...emailsLower, ...nombresFromEmails]
     : [];
   if (chatCloserValues.length > 0) {
-    const byCloser = sql`LOWER(TRIM(COALESCE(${chatsLogs.notas_extra}, ''))) IN (${sql.join(chatCloserValues.map((v) => sql`${v}`), sql`, `)})`;
+    const closerList = sql.join(chatCloserValues.map((v) => sql`${v}`), sql`, `);
+    // El asesor del chat puede venir en notas_extra O en asesor_asignado (GHL a veces
+    // llena uno u otro). Antes solo se miraba notas_extra, así que los chats con
+    // asesor_asignado quedaban sin dueño (no aparecían para nadie).
+    const byCloser = sql`(LOWER(TRIM(COALESCE(${chatsLogs.notas_extra}, ''))) IN (${closerList}) OR LOWER(TRIM(COALESCE(${chatsLogs.asesor_asignado}, ''))) IN (${closerList}))`;
     const sinCloser = sql`COALESCE(TRIM(${chatsLogs.notas_extra}), '') = '' AND COALESCE(TRIM(${chatsLogs.asesor_asignado}), '') = ''`;
-    const owned = ownedLeadMatch(sql`${chatsLogs.id_lead}`, null, null);
+    // id_lead puede ser el contact_id, el email o el teléfono del lead — cruzar contra los tres.
+    const owned = ownedLeadMatch(sql`${chatsLogs.id_lead}`, sql`${chatsLogs.id_lead}`, sql`${chatsLogs.id_lead}`);
     chatConditions.push(owned ? sql`(${byCloser} OR (${sinCloser} AND ${owned}))` : byCloser);
   }
   const chatsRows = await db.select().from(chatsLogs).where(and(...chatConditions));
