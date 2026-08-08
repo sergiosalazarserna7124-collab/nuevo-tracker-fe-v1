@@ -353,19 +353,6 @@ export default function DashboardPage() {
               <span className="text-base leading-none">+</span> Agregar métrica
             </Link>
           </div>
-          {kpis.revenue === 0 && !data?.configuracion_ui?.fuente_datos_financieros && (
-            <div className="mb-2 px-3 py-2 rounded-lg bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-[11px] flex items-center gap-2">
-              <span>⚠️</span>
-              <span>
-                Revenue siempre es <strong>$0</strong>? Configura la fuente de datos financieros en{' '}
-                <Link href="/system?step=10" className="underline hover:text-accent-amber/80">
-                  /system → paso 10
-                </Link>
-              </span>
-            </div>
-          )}
-
-
           {(() => {
             const metricasDelPanel = (data?.metricasComputadas ?? []).filter((m) => {
               if (Array.isArray(m.paneles)) return m.paneles.includes('panel_ejecutivo');
