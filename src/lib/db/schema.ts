@@ -429,18 +429,44 @@ export interface CategoriaChat {
 // cita) se evalúa con el prompt de la etapa, se resume con prompt_resumen y
 // las reglas de etiquetas de la etapa aplican SOLO ahí.
 
+// Regla de etiquetas de la etapa: mismo modelo completo que las reglas globales
+// (condición + N acciones + fuentes + exclusiones), pero aplican SOLO cuando el
+// contacto está en esta etapa.
+export interface AccionReglaEtapa {
+  tipo: "cambiar_estado" | "asignar_etiqueta" | "etapa_cambiada" | "incrementar_metrica" | "asignar_categoria" | "escribir_campo_ghl" | "escribir_campo_ghl_ia";
+  valor?: string;
+  funnelStage?: string;
+  metrica_id?: string;
+  metrica_incremento?: number;
+  categoria_id?: string;
+  fieldId?: string;
+  prompt?: string;
+}
 export interface ReglaEtapaLead {
   id: string;
-  tag: string;
-  condition: string;
+  condicion: string;
+  acciones: AccionReglaEtapa[];
+  fuentes: string[];             // ["llamadas","videollamadas","chats"] | ["todas"]
+  excluye?: string[];
+  // legacy simple (compat con datos previos)
+  tag?: string;
+  condition?: string;
 }
 
-// Coach de ventas de la etapa: define qué DEBE pasar en esta etapa/categoría.
-// El sistema evalúa TODAS las interacciones del contacto en conjunto (chats,
-// llamadas y citas, unidas por contact_id) y decide si pasó o no pasó.
+// Coach de ventas de la etapa: guión con secciones (como el coach por canal),
+// pero evaluado en conjunto sobre TODAS las interacciones del contacto (chats,
+// llamadas y citas, unidas por contact_id). Decide pasó / no pasó por umbral.
+export interface SeccionGuionEtapa {
+  id: string;
+  nombre: string;
+  criterio: string;
+  tipo: "must_have" | "deseable";
+}
 export interface CoachEtapaLead {
-  criterios: string;            // qué debe pasar en esta etapa para considerarla cumplida
+  secciones: SeccionGuionEtapa[];
   umbral?: number;              // % mínimo de cumplimiento para "pasó" (default 70)
+  nota_cumplido?: string;       // instrucción a la IA para la nota cuando cumple
+  nota_no_cumplido?: string;    // instrucción a la IA para la nota cuando no cumple
   tags_cumplido?: string[];     // etiquetas GHL a poner si pasó
   tags_no_cumplido?: string[];  // etiquetas GHL a poner si no pasó
 }

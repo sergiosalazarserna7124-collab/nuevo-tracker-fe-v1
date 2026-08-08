@@ -80,6 +80,28 @@ interface TagRule {
   metrica_incremento?: number;
   nombre?: string;
 }
+// Convierte reglas de etapa guardadas (formato viejo {tag,condition} o completo)
+// al modelo TagRule que usa el editor.
+function normalizeReglasEtapa(raw: unknown): TagRule[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((r): TagRule => {
+    const o = (r ?? {}) as Record<string, unknown>;
+    const acciones = Array.isArray(o.acciones) && (o.acciones as unknown[]).length > 0
+      ? (o.acciones as AccionReglaLocal[])
+      : [{ tipo: 'asignar_etiqueta' as const, valor: (o.tag as string) ?? (o.valor as string) ?? '' }];
+    const fuentes = Array.isArray(o.fuentes) && (o.fuentes as unknown[]).length > 0
+      ? (o.fuentes as string[])
+      : ['llamadas', 'videollamadas', 'chats'];
+    return {
+      id: (o.id as string) ?? `regla-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      condicion: (o.condicion as string) ?? (o.condition as string) ?? '',
+      acciones,
+      fuentes,
+      excluye: Array.isArray(o.excluye) ? (o.excluye as string[]) : undefined,
+    };
+  });
+}
+
 interface MetricRule {
   id: string; name: string; description: string; condition: string;
   increment: number; whenMeasured: string; isRecurring: 'recurrente' | 'unica';
@@ -286,7 +308,7 @@ export default function SystemPage() {
   // Embudo IA (7), Chat Triggers (8, el emoji de delegación vive en Eval. citas),
   // Fuente financiera (10) e Integraciones de Ads (11). Los IDs se conservan
   // para no romper deep-links como /system?step=5.
-  const VISIBLE_STEPS = [1, 4, 5, 6, 9, 12, 13];
+  const VISIBLE_STEPS = [1, 5, 6];
   const parsedStep = Number(stepParam) || 1;
   const initialStep = VISIBLE_STEPS.includes(parsedStep) ? parsedStep : 1;
   const [currentStep, setCurrentStep] = useState(initialStep);
@@ -390,12 +412,13 @@ export default function SystemPage() {
   const [clEtiqueta, setClEtiqueta] = useState('');
   const [clPrompt, setClPrompt] = useState('');
   const [clPromptResumen, setClPromptResumen] = useState('');
-  const [clReglas, setClReglas] = useState<ReglaEtapaLead[]>([]);
-  const [clReglaTag, setClReglaTag] = useState('');
-  const [clReglaCond, setClReglaCond] = useState('');
-  // Coach de ventas de la etapa (qué debe pasar + evaluación pasó/no pasó)
-  const [clCoachCriterios, setClCoachCriterios] = useState('');
+  // Reglas de etiquetas de la etapa (modelo completo, igual que las globales)
+  const [clReglas, setClReglas] = useState<TagRule[]>([]);
+  // Coach de ventas de la etapa (guión por secciones + notas + tags)
+  const [clCoachSecciones, setClCoachSecciones] = useState<SeccionGuion[]>([]);
   const [clCoachUmbral, setClCoachUmbral] = useState(70);
+  const [clCoachNotaCumplido, setClCoachNotaCumplido] = useState('');
+  const [clCoachNotaNoCumplido, setClCoachNotaNoCumplido] = useState('');
   const [clCoachTagsCumplido, setClCoachTagsCumplido] = useState<string[]>([]);
   const [clCoachTagsNoCumplido, setClCoachTagsNoCumplido] = useState<string[]>([]);
   const [clCoachTagCumplInput, setClCoachTagCumplInput] = useState('');
@@ -653,12 +676,6 @@ export default function SystemPage() {
     }
     setCoachLoading(false);
   }, []);
-
-  useEffect(() => {
-    if (currentStep === 12 && coachHabilitado === null && !coachLoading) {
-      loadCoachData();
-    }
-  }, [currentStep, coachHabilitado, coachLoading, loadCoachData]);
 
   // Prompts de evaluación → Chats: cargar categorías (criterios custom) una vez
   useEffect(() => {
@@ -956,12 +973,8 @@ export default function SystemPage() {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2">
           {[
             { id: 1, title: 'Prompts de evaluación', icon: Sparkles, color: 'purple' },
-            { id: 4, title: 'Reglas de etiquetas', icon: Tag, color: 'amber' },
             { id: 5, title: 'Métricas custom', icon: BarChart3, color: 'green' },
             { id: 6, title: 'Metas', icon: Target, color: 'cyan' },
-            { id: 9, title: 'Motor IA', icon: Key, color: 'purple' },
-            { id: 12, title: 'Coach de ventas', icon: ShieldCheck, color: 'green' },
-            { id: 13, title: 'Gemini Key', icon: Sparkles, color: 'purple' },
           ].map((s) => {
             const Icon = s.icon;
             const active = currentStep === s.id;
@@ -1027,7 +1040,7 @@ export default function SystemPage() {
                           <p className="text-sm text-white font-semibold">{cl.nombre}
                             <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-mono">{cl.etiqueta}</span>
                             {(cl.reglas_etiquetas?.length ?? 0) > 0 && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent-amber/20 text-accent-amber border border-accent-amber/30">{cl.reglas_etiquetas!.length} regla{cl.reglas_etiquetas!.length !== 1 ? 's' : ''}</span>}
-                            {cl.coach?.criterios && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent-green/20 text-accent-green border border-accent-green/30">🎯 coach {cl.coach.umbral ?? 70}%</span>}
+                            {(cl.coach?.secciones?.length ?? 0) > 0 && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent-green/20 text-accent-green border border-accent-green/30">🎯 coach {cl.coach!.umbral ?? 70}%</span>}
                           </p>
                           <p className="text-[11px] text-gray-500 truncate max-w-2xl mt-0.5">{cl.prompt}</p>
                         </div>
@@ -1035,9 +1048,11 @@ export default function SystemPage() {
                           <button type="button" onClick={() => {
                             setClEditId(cl.id); setClNombre(cl.nombre); setClEtiqueta(cl.etiqueta);
                             setClPrompt(cl.prompt); setClPromptResumen(cl.prompt_resumen ?? '');
-                            setClReglas(cl.reglas_etiquetas ?? []);
-                            setClCoachCriterios(cl.coach?.criterios ?? '');
+                            setClReglas(normalizeReglasEtapa(cl.reglas_etiquetas));
+                            setClCoachSecciones((cl.coach?.secciones ?? []).map((s) => ({ ...s })));
                             setClCoachUmbral(cl.coach?.umbral ?? 70);
+                            setClCoachNotaCumplido(cl.coach?.nota_cumplido ?? '');
+                            setClCoachNotaNoCumplido(cl.coach?.nota_no_cumplido ?? '');
                             setClCoachTagsCumplido(cl.coach?.tags_cumplido ?? []);
                             setClCoachTagsNoCumplido(cl.coach?.tags_no_cumplido ?? []);
                             setClCoachTagCumplInput(''); setClCoachTagNoCumplInput('');
@@ -1091,56 +1106,279 @@ export default function SystemPage() {
                     className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-purple/40" />
                 </div>
 
-                {/* Reglas de etiquetas de ESTA etapa */}
-                <div className="rounded-lg bg-surface-700/50 border border-surface-500 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-accent-amber">🏷️ Reglas de etiquetas de esta etapa</p>
-                  <p className="text-[11px] text-gray-500">Aplican SOLO cuando el lead está en esta etapa. Si la condición se cumple en una interacción, se pone la etiqueta.</p>
-                  {clReglas.length > 0 && (
-                    <ul className="space-y-1">
-                      {clReglas.map((r) => (
-                        <li key={r.id} className="flex items-center justify-between gap-2 text-xs bg-surface-600/60 rounded px-2 py-1.5">
-                          <span className="text-gray-300"><span className="font-mono text-accent-amber">{r.tag}</span> — {r.condition}</span>
-                          <button type="button" onClick={() => setClReglas((prev) => prev.filter((x) => x.id !== r.id))}
-                            className="text-gray-500 hover:text-red-400 shrink-0"><X className="w-3.5 h-3.5" /></button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="grid md:grid-cols-2 gap-2">
-                    <input type="text" value={clReglaTag} onChange={(e) => setClReglaTag(e.target.value)} placeholder="Etiqueta a poner (ej: pidio_info)"
-                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white font-mono focus:ring-2 focus:ring-accent-amber/40" />
-                    <input type="text" value={clReglaCond} onChange={(e) => setClReglaCond(e.target.value)} placeholder="Condición (ej: el lead pidió información de precios)"
-                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white focus:ring-2 focus:ring-accent-amber/40" />
+                {/* ── Reglas de etiquetas de ESTA etapa (editor completo) ── */}
+                <div className="rounded-lg bg-surface-700/50 border border-accent-amber/30 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-accent-amber">🏷️ Reglas de etiquetas de esta etapa</p>
+                    <button type="button" onClick={() => setClReglas((prev) => [...prev, { id: `regla-${Date.now()}`, condicion: '', acciones: [{ tipo: 'asignar_etiqueta', valor: '' }], fuentes: ['llamadas', 'videollamadas', 'chats'] }])}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent-amber/20 text-accent-amber border border-accent-amber/40 text-[11px] font-semibold hover:bg-accent-amber/30">
+                      <Plus className="w-3 h-3" /> Añadir regla
+                    </button>
                   </div>
-                  <button type="button" onClick={() => {
-                    if (!clReglaTag.trim() || !clReglaCond.trim()) { toast.error('Etiqueta y condición son obligatorias'); return; }
-                    setClReglas((prev) => [...prev, { id: `regla-${Date.now()}`, tag: clReglaTag.trim(), condition: clReglaCond.trim() }]);
-                    setClReglaTag(''); setClReglaCond('');
-                  }} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent-amber/20 text-accent-amber border border-accent-amber/40 text-[11px] font-semibold hover:bg-accent-amber/30">
-                    <Plus className="w-3 h-3" /> Añadir regla
-                  </button>
+                  <p className="text-[11px] text-gray-500">Aplican SOLO cuando el lead está en esta etapa. Si la condición se cumple en una interacción del contacto, se ejecutan las acciones (poner etiqueta, escribir campo GHL, cambiar estado, etc.).</p>
+                  {clReglas.length === 0 && <p className="text-[11px] text-gray-500 italic">Sin reglas para esta etapa. Usa “Añadir regla”.</p>}
+                  <ul className="space-y-3">
+                    {clReglas.map((r) => {
+                      const KNOWN_CONDITIONS = ['mencion_precio', 'enojo', 'interes_alto', 'solicitud_propuesta', 'objecion_precio', 'objecion_tiempo', 'duracion_mayor', 'intentos_mayor', 'speed_mayor'];
+                      const allChannels = ['llamadas', 'videollamadas', 'chats'];
+                      const isAllSources = r.fuentes.length === 3 && allChannels.every((c) => r.fuentes.includes(c));
+                      const updateRule = (patch: Partial<TagRule>) => setClReglas((prev) => prev.map((x) => x.id === r.id ? { ...x, ...patch } : x));
+                      const updateAccion = (idx: number, patch: Partial<AccionReglaLocal>) => updateRule({ acciones: r.acciones.map((a, i) => i === idx ? { ...a, ...patch } : a) });
+                      const addAccion = () => updateRule({ acciones: [...r.acciones, { tipo: 'asignar_etiqueta', valor: '' }] });
+                      const removeAccion = (idx: number) => updateRule({ acciones: r.acciones.filter((_, i) => i !== idx) });
+                      const toggleFuente = (canal: string) => { const has = r.fuentes.includes(canal); const next = has ? r.fuentes.filter((f) => f !== canal) : [...r.fuentes, canal]; if (next.length === 0) return; updateRule({ fuentes: next }); };
+                      const toggleTodas = () => updateRule({ fuentes: isAllSources ? [] : [...allChannels] });
+                      return (
+                        <li key={r.id} className="rounded-xl p-3 space-y-3 border-l-4 border-accent-amber/60 bg-gradient-to-b from-surface-700/90 to-surface-800/90 border border-surface-500">
+                          <div className="flex flex-wrap gap-3">
+                            <div className="flex-1 min-w-[180px]">
+                              <label className="block text-[11px] font-medium text-accent-amber mb-1">Condición</label>
+                              <select value={KNOWN_CONDITIONS.includes(r.condicion) ? r.condicion : '_custom'}
+                                onChange={(e) => { const val = e.target.value; if (val !== '_custom') updateRule({ condicion: val }); }}
+                                className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white">
+                                <optgroup label="Condición IA">
+                                  <option value="mencion_precio">Mención de precio</option>
+                                  <option value="enojo">Enojo del lead</option>
+                                  <option value="interes_alto">Interés alto</option>
+                                  <option value="solicitud_propuesta">Solicitud de propuesta</option>
+                                  <option value="objecion_precio">Objeción por precio</option>
+                                  <option value="objecion_tiempo">Objeción por tiempo</option>
+                                </optgroup>
+                                <optgroup label="Condición Fija">
+                                  <option value="duracion_mayor">Duración mayor a X min</option>
+                                  <option value="intentos_mayor">Intentos mayor a Y</option>
+                                  <option value="speed_mayor">Speed to lead mayor a Z min</option>
+                                </optgroup>
+                                <optgroup label="Personalizada"><option value="_custom">Texto libre...</option></optgroup>
+                              </select>
+                              {!KNOWN_CONDITIONS.includes(r.condicion) && (
+                                <input type="text" value={r.condicion} onChange={(e) => updateRule({ condicion: e.target.value })}
+                                  placeholder="Condición personalizada (ej: el lead pidió información de precios)"
+                                  className="w-full mt-1.5 rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-amber/40" />
+                              )}
+                            </div>
+                            <div className="w-48">
+                              <label className="block text-[11px] font-medium text-gray-400 mb-1">Fuentes</label>
+                              <div className="flex flex-wrap gap-1.5">
+                                <button type="button" onClick={toggleTodas} className={`px-2 py-1 rounded text-[11px] font-medium border transition-colors ${isAllSources ? 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/40' : 'bg-surface-600 text-gray-400 border-surface-500 hover:border-gray-400'}`}>Todas</button>
+                                {allChannels.map((canal) => (
+                                  <button key={canal} type="button" onClick={() => toggleFuente(canal)}
+                                    className={`px-2 py-1 rounded text-[11px] font-medium border transition-colors ${r.fuentes.includes(canal) && !isAllSources ? 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/40' : !isAllSources ? 'bg-surface-600 text-gray-400 border-surface-500 hover:border-gray-400' : 'bg-surface-600 text-gray-500 border-surface-500 opacity-50'}`}
+                                    disabled={isAllSources}>{canal === 'llamadas' ? 'Llamadas' : canal === 'videollamadas' ? 'Citas' : 'Chats'}</button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-[11px] font-medium text-gray-400">Acciones ({r.acciones.length})</label>
+                            {r.acciones.map((a, ai) => (
+                              <div key={ai} className="rounded-lg p-3 bg-surface-600/50 border border-surface-500 space-y-2">
+                                <div className="flex flex-wrap gap-2 items-end">
+                                  <div className="w-44">
+                                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Tipo</label>
+                                    <select value={a.tipo} onChange={(e) => updateAccion(ai, { tipo: e.target.value as AccionReglaLocal['tipo'], valor: '', funnelStage: undefined, metrica_id: undefined, metrica_incremento: undefined, categoria_id: undefined, fieldId: undefined, prompt: undefined })}
+                                      className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
+                                      <option value="asignar_etiqueta">Poner etiqueta</option>
+                                      <option value="escribir_campo_ghl">Escribir en un campo de GHL</option>
+                                      <option value="escribir_campo_ghl_ia">Llenar campo de GHL con IA</option>
+                                      <option value="cambiar_estado">Cambiar estado</option>
+                                      <option value="etapa_cambiada">Etapa cambiada</option>
+                                      <option value="incrementar_metrica">Incrementar métrica</option>
+                                      {categoriasLlamadas.length > 0 && <option value="asignar_categoria">Asignar categoría</option>}
+                                    </select>
+                                  </div>
+                                  {a.tipo === 'asignar_etiqueta' && (
+                                    <div className="flex-1 min-w-[120px]">
+                                      <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">Etiqueta</label>
+                                      <input type="text" value={a.valor ?? ''} onChange={(e) => { const v = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''); updateAccion(ai, { valor: v }); }}
+                                        placeholder="nombre_etiqueta" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40" />
+                                    </div>
+                                  )}
+                                  {a.tipo === 'escribir_campo_ghl' && (
+                                    <>
+                                      <div className="flex-1 min-w-[140px]">
+                                        <label className="block text-[10px] font-medium text-accent-green mb-0.5">Campo de GHL</label>
+                                        <input type="text" value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
+                                          placeholder="ej: presupuesto_estado" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
+                                      </div>
+                                      <div className="flex-1 min-w-[140px]">
+                                        <label className="block text-[10px] font-medium text-accent-green mb-0.5">Texto a escribir</label>
+                                        <input type="text" value={a.valor ?? ''} onChange={(e) => updateAccion(ai, { valor: e.target.value })}
+                                          placeholder="ej: Presupuesto_mayor_5000" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
+                                      </div>
+                                    </>
+                                  )}
+                                  {a.tipo === 'escribir_campo_ghl_ia' && (
+                                    <>
+                                      <div className="flex-1 min-w-[140px]">
+                                        <label className="block text-[10px] font-medium text-accent-purple mb-0.5">ID del campo de GHL</label>
+                                        <input type="text" value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
+                                          placeholder="ej: resumen_interes" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
+                                      </div>
+                                      <div className="w-full">
+                                        <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Mini-prompt</label>
+                                        <textarea value={a.prompt ?? ''} onChange={(e) => updateAccion(ai, { prompt: e.target.value })}
+                                          placeholder="ej: Resume en 1 frase por qué el lead está interesado"
+                                          className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-purple/40" />
+                                      </div>
+                                    </>
+                                  )}
+                                  {a.tipo === 'cambiar_estado' && (
+                                    <div className="flex-1 min-w-[120px]">
+                                      <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">Estado</label>
+                                      <input type="text" value={a.valor ?? ''} onChange={(e) => updateAccion(ai, { valor: e.target.value })}
+                                        placeholder="nuevo_estado" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40" />
+                                    </div>
+                                  )}
+                                  {a.tipo === 'etapa_cambiada' && (
+                                    <div className="flex-1 min-w-[140px]">
+                                      <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Etapa del embudo</label>
+                                      <select value={a.funnelStage ?? ''} onChange={(e) => updateAccion(ai, { funnelStage: e.target.value || undefined, valor: e.target.value || undefined })}
+                                        className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
+                                        <option value="">— Seleccionar —</option>
+                                        {embudoEtapas.map((e) => (<option key={e.id} value={e.nombre}>{e.nombre}</option>))}
+                                      </select>
+                                    </div>
+                                  )}
+                                  {a.tipo === 'incrementar_metrica' && (
+                                    <>
+                                      <div className="flex-1 min-w-[140px]">
+                                        <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">Métrica</label>
+                                        <select value={a.metrica_id ?? ''} onChange={(e) => updateAccion(ai, { metrica_id: e.target.value || undefined })}
+                                          className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
+                                          <option value="">— Seleccionar —</option>
+                                          {metricasConfig.filter((m) => m.tipo === 'manual' || m.tipo === 'fija' || m.tipo === 'webhook')
+                                            .sort((a, b) => { const order: Record<string, number> = { manual: 0, fija: 1, webhook: 2 }; return (order[a.tipo] ?? 9) - (order[b.tipo] ?? 9); })
+                                            .map((m) => (<option key={m.id} value={m.id}>{m.nombre}{m.tipo === 'webhook' ? ' (webhook)' : ''}</option>))}
+                                        </select>
+                                      </div>
+                                      <div className="w-20">
+                                        <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">+</label>
+                                        <input type="number" min="1" value={a.metrica_incremento ?? 1} onChange={(e) => updateAccion(ai, { metrica_incremento: parseInt(e.target.value) || 1 })}
+                                          className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white" />
+                                      </div>
+                                    </>
+                                  )}
+                                  {a.tipo === 'asignar_categoria' && categoriasLlamadas.length > 0 && (
+                                    <div className="flex-1 min-w-[140px]">
+                                      <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Categoría</label>
+                                      <select value={a.categoria_id ?? ''} onChange={(e) => updateAccion(ai, { categoria_id: e.target.value || undefined })}
+                                        className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
+                                        <option value="">— Seleccionar categoría —</option>
+                                        {categoriasLlamadas.map((cat) => (<option key={cat.id} value={cat.id}>{cat.nombre}</option>))}
+                                      </select>
+                                    </div>
+                                  )}
+                                  {r.acciones.length > 1 && (
+                                    <button type="button" onClick={() => removeAccion(ai)} className="text-gray-500 hover:text-red-400 transition-colors p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            <button type="button" onClick={addAccion} className="text-[11px] text-accent-amber hover:text-accent-amber/80 transition-colors flex items-center gap-1">
+                              <Plus className="w-3 h-3" /> Agregar acción
+                            </button>
+                          </div>
+
+                          <div className="rounded-lg p-3 bg-surface-600/30 border border-surface-500 space-y-2">
+                            <label className="text-[11px] font-medium text-gray-400">Bloquear etiquetas si esta regla aplica</label>
+                            {(() => {
+                              const allTags = clReglas
+                                .flatMap((tr) => tr.acciones.filter((a) => a.tipo === 'asignar_etiqueta' && a.valor).map((a) => a.valor as string))
+                                .filter((v, i, arr) => arr.indexOf(v) === i)
+                                .filter((v) => !r.acciones.some((a) => a.tipo === 'asignar_etiqueta' && a.valor === v));
+                              const currentExcluye = r.excluye ?? [];
+                              if (allTags.length === 0) return <p className="text-[10px] text-gray-500 italic">No hay otras etiquetas configuradas en las reglas de esta etapa.</p>;
+                              return (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {allTags.map((tag) => {
+                                    const selected = currentExcluye.includes(tag);
+                                    return (
+                                      <button key={tag} type="button"
+                                        onClick={() => updateRule({ excluye: selected ? currentExcluye.filter((t) => t !== tag) : [...currentExcluye, tag] })}
+                                        className={`px-2 py-1 rounded text-[11px] font-medium border transition-colors ${selected ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-surface-600 text-gray-400 border-surface-500 hover:border-gray-400'}`}>
+                                        {selected ? '✕ ' : ''}{tag}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          <div className="flex justify-end">
+                            <button type="button" onClick={() => setClReglas((prev) => prev.filter((x) => x.id !== r.id))}
+                              className="text-[10px] text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 className="w-3 h-3" /> Eliminar regla</button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
 
-                {/* Coach de ventas de ESTA etapa */}
-                <div className="rounded-lg bg-surface-700/50 border border-accent-green/30 p-3 space-y-2.5">
-                  <p className="text-xs font-semibold text-accent-green">🎯 Coach de ventas de esta etapa</p>
-                  <p className="text-[11px] text-gray-500">Describe qué DEBE pasar para dar por cumplida esta etapa. El sistema evalúa en conjunto todas las interacciones del contacto (chats, llamadas y citas, unidas por el contact ID) y decide si pasó o no pasó.</p>
-                  <div>
-                    <label className="text-[11px] font-medium text-accent-green block mb-1">¿Qué debe pasar en esta etapa? (criterios de cumplimiento)</label>
-                    <textarea value={clCoachCriterios} onChange={(e) => setClCoachCriterios(e.target.value)}
-                      placeholder="Ej: El asesor presentó la propuesta, resolvió objeciones de precio y dejó agendado el siguiente paso (zoom o cierre). Se considera cumplida si, entre todos los chats/llamadas/citas del contacto, se cubrieron estos puntos."
-                      className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-xs text-white min-h-[70px] focus:ring-2 focus:ring-accent-green/40" />
+                {/* ── Coach de ventas de ESTA etapa (guión por secciones) ── */}
+                <div className="rounded-lg bg-surface-700/50 border border-accent-green/30 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-accent-green">🎯 Coach de ventas de esta etapa</p>
+                    <div className="flex items-center gap-1.5">
+                      {clCoachSecciones.length === 0 && (
+                        <button type="button" onClick={() => setClCoachSecciones(DEFAULT_SECCIONES.map((s) => ({ ...s })))}
+                          className="text-[10px] px-2 py-1 rounded-lg bg-surface-600 text-gray-300 border border-surface-500 hover:border-gray-400">Usar plantilla</button>
+                      )}
+                      <button type="button" onClick={() => setClCoachSecciones((prev) => [...prev, { id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sec-${Date.now()}`, nombre: '', criterio: '', tipo: 'deseable' }])}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent-green/20 text-accent-green border border-accent-green/40 text-[10px] font-semibold hover:bg-accent-green/30">
+                        <Plus className="w-3 h-3" /> Sección
+                      </button>
+                    </div>
                   </div>
-                  <div>
+                  <p className="text-[11px] text-gray-500">Define el guión modelo de esta etapa por secciones. El sistema evalúa EN CONJUNTO todas las interacciones del contacto (chats, llamadas y citas, unidas por el contact ID). Secciones <span className="text-accent-green">must-have</span> que falten generan tag de incumplimiento; las <span className="text-gray-300">deseables</span> solo suman una nota suave.</p>
+
+                  {clCoachSecciones.length === 0 && <p className="text-[11px] text-gray-500 italic">Sin coach para esta etapa. Añade una sección o usa la plantilla.</p>}
+
+                  {clCoachSecciones.map((sec, idx) => (
+                    <div key={sec.id} className="rounded-lg p-3 bg-surface-600/50 border border-surface-500 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input type="text" value={sec.nombre} onChange={(e) => setClCoachSecciones((prev) => prev.map((s, i) => i === idx ? { ...s, nombre: e.target.value } : s))}
+                          placeholder="Nombre de la sección (ej: Apertura)" className="flex-1 rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
+                        <button type="button" onClick={() => setClCoachSecciones((prev) => prev.map((s, i) => i === idx ? { ...s, tipo: s.tipo === 'must_have' ? 'deseable' : 'must_have' } : s))}
+                          className={`shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${sec.tipo === 'must_have' ? 'bg-accent-green/20 text-accent-green border-accent-green/40' : 'bg-surface-700 text-gray-400 border-surface-500 hover:border-gray-400'}`}>
+                          {sec.tipo === 'must_have' ? 'Must-have' : 'Deseable'}
+                        </button>
+                        <button type="button" onClick={() => setClCoachSecciones((prev) => prev.filter((_, i) => i !== idx))} className="p-1 text-gray-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                      <textarea value={sec.criterio} onChange={(e) => setClCoachSecciones((prev) => prev.map((s, i) => i === idx ? { ...s, criterio: e.target.value } : s))}
+                        placeholder="¿Qué debe cubrir el asesor en esta sección? (criterio de evaluación)"
+                        className="w-full rounded-lg bg-surface-700 border border-surface-500 p-2 text-sm text-white min-h-[56px] focus:ring-2 focus:ring-accent-green/40" />
+                    </div>
+                  ))}
+
+                  <div className="pt-1">
                     <label className="text-[11px] font-medium text-accent-green block mb-1">Umbral de cumplimiento: {clCoachUmbral}%</label>
                     <div className="flex items-center gap-3">
                       <input type="range" min={0} max={100} step={5} value={clCoachUmbral} onChange={(e) => setClCoachUmbral(Number(e.target.value))} className="flex-1 accent-accent-green" />
                       <input type="number" min={0} max={100} value={clCoachUmbral} onChange={(e) => setClCoachUmbral(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} className="w-16 rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white text-center focus:ring-2 focus:ring-accent-green/40" />
                     </div>
                   </div>
+
+                  <div className="grid md:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">Nota si <span className="text-accent-green">cumple</span> el umbral</label>
+                      <textarea value={clCoachNotaCumplido} onChange={(e) => setClCoachNotaCumplido(e.target.value)}
+                        placeholder="Instrucción para la IA cuando cumple (opcional)"
+                        className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-xs text-white min-h-[40px] focus:ring-2 focus:ring-accent-green/40" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">Nota si <span className="text-red-400">no cumple</span> el umbral</label>
+                      <textarea value={clCoachNotaNoCumplido} onChange={(e) => setClCoachNotaNoCumplido(e.target.value)}
+                        placeholder="Instrucción para la IA cuando no cumple (opcional)"
+                        className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-xs text-white min-h-[40px] focus:ring-2 focus:ring-red-500/40" />
+                    </div>
+                  </div>
+
                   <div className="grid md:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] text-gray-400 block mb-1">Etiquetas si <span className="text-accent-green">pasó</span></label>
+                      <label className="text-[11px] text-gray-400 block mb-1">Tags si <span className="text-accent-green">pasó</span></label>
                       <div className="flex flex-wrap gap-1 mb-1">
                         {clCoachTagsCumplido.map((tag, i) => (
                           <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-accent-green/15 text-accent-green border border-accent-green/30 font-mono">
@@ -1155,7 +1393,7 @@ export default function SystemPage() {
                         className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white font-mono focus:ring-2 focus:ring-accent-green/40" />
                     </div>
                     <div>
-                      <label className="text-[11px] text-gray-400 block mb-1">Etiquetas si <span className="text-red-400">no pasó</span></label>
+                      <label className="text-[11px] text-gray-400 block mb-1">Tags si <span className="text-red-400">no pasó</span></label>
                       <div className="flex flex-wrap gap-1 mb-1">
                         {clCoachTagsNoCumplido.map((tag, i) => (
                           <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-red-500/15 text-red-400 border border-red-500/30 font-mono">
@@ -1175,527 +1413,28 @@ export default function SystemPage() {
                 <div className="flex items-center gap-2 pt-1">
                   <button type="button" onClick={() => {
                     if (!clNombre.trim() || !clEtiqueta.trim() || !clPrompt.trim()) { toast.error('Nombre, etiqueta y prompt de evaluación son obligatorios'); return; }
-                    const coach: CoachEtapaLead | undefined = clCoachCriterios.trim()
-                      ? { criterios: clCoachCriterios.trim(), umbral: clCoachUmbral, tags_cumplido: clCoachTagsCumplido, tags_no_cumplido: clCoachTagsNoCumplido }
+                    const reglasLimpias: ReglaEtapaLead[] = clReglas
+                      .filter((r) => (r.condicion ?? '').trim())
+                      .map((r) => ({ id: r.id, condicion: r.condicion.trim(), acciones: r.acciones as ReglaEtapaLead['acciones'], fuentes: r.fuentes, ...(r.excluye && r.excluye.length ? { excluye: r.excluye } : {}) }));
+                    const seccionesLimpias = clCoachSecciones.filter((s) => s.nombre.trim() || s.criterio.trim());
+                    const coach: CoachEtapaLead | undefined = seccionesLimpias.length > 0
+                      ? { secciones: seccionesLimpias, umbral: clCoachUmbral, nota_cumplido: clCoachNotaCumplido.trim() || undefined, nota_no_cumplido: clCoachNotaNoCumplido.trim() || undefined, tags_cumplido: clCoachTagsCumplido, tags_no_cumplido: clCoachTagsNoCumplido }
                       : undefined;
-                    const item: CategoriaLead = { id: clEditId ?? `lead-${Date.now()}`, nombre: clNombre.trim(), etiqueta: clEtiqueta.trim(), prompt: clPrompt.trim(), prompt_resumen: clPromptResumen.trim() || undefined, reglas_etiquetas: clReglas, coach };
+                    const item: CategoriaLead = { id: clEditId ?? `lead-${Date.now()}`, nombre: clNombre.trim(), etiqueta: clEtiqueta.trim(), prompt: clPrompt.trim(), prompt_resumen: clPromptResumen.trim() || undefined, reglas_etiquetas: reglasLimpias, coach };
                     if (clEditId) setCategoriasLeads((prev) => prev.map((c) => c.id === clEditId ? item : c));
                     else setCategoriasLeads((prev) => [...prev, item]);
-                    setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]); setClReglaTag(''); setClReglaCond('');
-                    setClCoachCriterios(''); setClCoachUmbral(70); setClCoachTagsCumplido([]); setClCoachTagsNoCumplido([]); setClCoachTagCumplInput(''); setClCoachTagNoCumplInput('');
+                    setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]);
+                    setClCoachSecciones([]); setClCoachUmbral(70); setClCoachNotaCumplido(''); setClCoachNotaNoCumplido(''); setClCoachTagsCumplido([]); setClCoachTagsNoCumplido([]); setClCoachTagCumplInput(''); setClCoachTagNoCumplInput('');
                   }} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-purple text-white text-sm font-semibold hover:bg-accent-purple/90">
                     <Plus className="w-4 h-4" /> {clEditId ? 'Guardar etapa' : 'Añadir etapa'}
                   </button>
                   {clEditId && (
-                    <button type="button" onClick={() => { setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]); setClCoachCriterios(''); setClCoachUmbral(70); setClCoachTagsCumplido([]); setClCoachTagsNoCumplido([]); setClCoachTagCumplInput(''); setClCoachTagNoCumplInput(''); }}
+                    <button type="button" onClick={() => { setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]); setClCoachSecciones([]); setClCoachUmbral(70); setClCoachNotaCumplido(''); setClCoachNotaNoCumplido(''); setClCoachTagsCumplido([]); setClCoachTagsNoCumplido([]); setClCoachTagCumplInput(''); setClCoachTagNoCumplInput(''); }}
                       className="text-xs text-gray-500 hover:text-gray-300">Cancelar</button>
                   )}
                   <p className="text-[10px] text-gray-500 ml-auto">Recuerda dar “Guardar” abajo para aplicar.</p>
                 </div>
               </div>
-            </div>
-          )}
-
-          {currentStep === 4 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-amber/30">
-                <div className="rounded-lg p-2 bg-accent-amber/20 border border-accent-amber/40"><Tag className="w-5 h-5 text-accent-amber" /></div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-lg font-semibold text-white">Reglas de etiquetas</h3>
-                    <HelpTooltip
-                      titulo="¿Qué son las reglas de etiquetas?"
-                      contenido={`Cada regla es una condición escrita en tus palabras. Después de cada llamada, cita o chat, el sistema revisa si esa condición se cumple:\n\n• Si se cumple → ejecuta la acción (pone la etiqueta, escribe en un campo de GHL, o la IA genera texto y lo guarda en un campo).\n• Si no se cumple → no hace nada.\n\nEjemplo: condición "el lead menciona un presupuesto mayor a 5000" → acción "Poner etiqueta" → Presupuesto_mayor_5000.`}
-                      comoProbar="Crea una regla con la condición en tus palabras (ej. 'menciona presupuesto mayor a 5000'), elige la acción y guarda. Espera a que entre una llamada o chat que cumpla la condición: la etiqueta (o el valor del campo) aparecerá en el perfil del lead."
-                    />
-                  </div>
-                  <p className="text-sm text-gray-400">Define condiciones para asignar etiquetas, cambiar estado o incrementar métricas automáticamente. Cada regla puede tener múltiples acciones.</p>
-                </div>
-              </div>
-              <ul className="space-y-3">
-                {tagRules.map((r) => {
-                  const KNOWN_CONDITIONS = ['mencion_precio', 'enojo', 'interes_alto', 'solicitud_propuesta', 'objecion_precio', 'objecion_tiempo', 'duracion_mayor', 'intentos_mayor', 'speed_mayor'];
-                  const allChannels = ['llamadas', 'videollamadas', 'chats'];
-                  const isAllSources = r.fuentes.length === 3 && allChannels.every((c) => r.fuentes.includes(c));
-                  const updateRule = (patch: Partial<TagRule>) => setTagRules((prev) => prev.map((x) => x.id === r.id ? { ...x, ...patch } : x));
-                  const updateAccion = (idx: number, patch: Partial<AccionReglaLocal>) => {
-                    const next = r.acciones.map((a, i) => i === idx ? { ...a, ...patch } : a);
-                    updateRule({ acciones: next });
-                  };
-                  const addAccion = () => updateRule({ acciones: [...r.acciones, { tipo: 'asignar_etiqueta', valor: '' }] });
-                  const removeAccion = (idx: number) => updateRule({ acciones: r.acciones.filter((_, i) => i !== idx) });
-                  const toggleFuente = (canal: string) => {
-                    const has = r.fuentes.includes(canal);
-                    const next = has ? r.fuentes.filter((f) => f !== canal) : [...r.fuentes, canal];
-                    if (next.length === 0) return;
-                    updateRule({ fuentes: next });
-                  };
-                  const toggleTodas = () => {
-                    updateRule({ fuentes: isAllSources ? [] : [...allChannels] });
-                  };
-                  return (
-                    <li key={r.id} className="rounded-xl p-4 space-y-3 border-l-4 border-accent-amber/60 bg-gradient-to-b from-surface-700/90 to-surface-800/90 border border-surface-500">
-                      <div className="flex flex-wrap gap-3">
-                        <div className="flex-1 min-w-[180px]">
-                          <label className="block text-[11px] font-medium text-accent-amber mb-1">Condición</label>
-                          <select
-                            value={KNOWN_CONDITIONS.includes(r.condicion) ? r.condicion : '_custom'}
-                            onChange={(e) => { const val = e.target.value; if (val !== '_custom') updateRule({ condicion: val }); }}
-                            className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white"
-                          >
-                            <optgroup label="Condición IA">
-                              <option value="mencion_precio">Mención de precio</option>
-                              <option value="enojo">Enojo del lead</option>
-                              <option value="interes_alto">Interés alto</option>
-                              <option value="solicitud_propuesta">Solicitud de propuesta</option>
-                              <option value="objecion_precio">Objeción por precio</option>
-                              <option value="objecion_tiempo">Objeción por tiempo</option>
-                            </optgroup>
-                            <optgroup label="Condición Fija">
-                              <option value="duracion_mayor">Duración mayor a X min</option>
-                              <option value="intentos_mayor">Intentos mayor a Y</option>
-                              <option value="speed_mayor">Speed to lead mayor a Z min</option>
-                            </optgroup>
-                            <optgroup label="Personalizada">
-                              <option value="_custom">Texto libre...</option>
-                            </optgroup>
-                          </select>
-                          {!KNOWN_CONDITIONS.includes(r.condicion) && (
-                            <input type="text" value={r.condicion} onChange={(e) => updateRule({ condicion: e.target.value })}
-                              placeholder="Condición personalizada"
-                              className="w-full mt-1.5 rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-amber/40" />
-                          )}
-                        </div>
-                        <div className="w-48">
-                          <label className="block text-[11px] font-medium text-gray-400 mb-1">Fuentes</label>
-                          <div className="flex flex-wrap gap-1.5">
-                            <button type="button" onClick={toggleTodas}
-                              className={`px-2 py-1 rounded text-[11px] font-medium border transition-colors ${isAllSources ? 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/40' : 'bg-surface-600 text-gray-400 border-surface-500 hover:border-gray-400'}`}>
-                              Todas
-                            </button>
-                            {allChannels.map((canal) => (
-                              <button key={canal} type="button" onClick={() => toggleFuente(canal)}
-                                className={`px-2 py-1 rounded text-[11px] font-medium border transition-colors ${r.fuentes.includes(canal) && !isAllSources ? 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/40' : !isAllSources ? 'bg-surface-600 text-gray-400 border-surface-500 hover:border-gray-400' : 'bg-surface-600 text-gray-500 border-surface-500 opacity-50'}`}
-                                disabled={isAllSources}>
-                                {canal === 'llamadas' ? 'Llamadas' : canal === 'videollamadas' ? 'Citas' : 'Chats'}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="block text-[11px] font-medium text-gray-400">Acciones ({r.acciones.length})</label>
-                        {r.acciones.map((a, ai) => (
-                          <div key={ai} className="rounded-lg p-3 bg-surface-600/50 border border-surface-500 space-y-2">
-                            <div className="flex flex-wrap gap-2 items-end">
-                              <div className="w-44">
-                                <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Tipo</label>
-                                <select value={a.tipo} onChange={(e) => updateAccion(ai, { tipo: e.target.value as AccionReglaLocal['tipo'], valor: '', funnelStage: undefined, metrica_id: undefined, metrica_incremento: undefined, categoria_id: undefined, fieldId: undefined, prompt: undefined })}
-                                  className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
-                                  <option value="asignar_etiqueta">Poner etiqueta</option>
-                                  <option value="escribir_campo_ghl">Escribir en un campo de GHL</option>
-                                  <option value="escribir_campo_ghl_ia">Llenar campo de GHL con IA</option>
-                                  <option value="cambiar_estado">Cambiar estado</option>
-                                  <option value="etapa_cambiada">Etapa cambiada</option>
-                                  <option value="incrementar_metrica">Incrementar métrica</option>
-                                  {categoriasLlamadas.length > 0 && <option value="asignar_categoria">Asignar categoría</option>}
-                                </select>
-                              </div>
-                              {a.tipo === 'asignar_etiqueta' && (
-                                <div className="flex-1 min-w-[120px]">
-                                  <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">Etiqueta</label>
-                                  <input type="text" value={a.valor ?? ''} onChange={(e) => { const v = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''); updateAccion(ai, { valor: v }); }}
-                                    placeholder="nombre_etiqueta" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40" />
-                                </div>
-                              )}
-                              {a.tipo === 'escribir_campo_ghl' && (
-                                <>
-                                  <div className="flex-1 min-w-[140px]">
-                                    <label className="flex items-center gap-1 text-[10px] font-medium text-accent-green mb-0.5">
-                                      Campo de GHL
-                                      <HelpTooltip
-                                        titulo="Campo de GHL"
-                                        contenido={'El id o key de un custom field que YA existe en tu GHL. Cuando la condición se cumple, el sistema escribe ahí el texto que pongas al lado. Si el campo no existe, no hace nada (no rompe).'}
-                                        comoProbar={'En GHL: Settings → Custom Fields. Copia el "Field Key" (ej. presupuesto_estado) o su id.'}
-                                      />
-                                    </label>
-                                    <input type="text" value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
-                                      placeholder="ej: presupuesto_estado" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
-                                  </div>
-                                  <div className="flex-1 min-w-[140px]">
-                                    <label className="flex items-center gap-1 text-[10px] font-medium text-accent-green mb-0.5">
-                                      Texto a escribir
-                                      <HelpTooltip
-                                        titulo="Texto a escribir"
-                                        contenido={'El texto exacto que se guardará en ese campo del contacto cuando la condición se cumpla.'}
-                                        comoProbar={'Ej: Presupuesto_mayor_5000. Después de una llamada que cumpla la condición, revisa el contacto en GHL y verás ese texto en el campo.'}
-                                      />
-                                    </label>
-                                    <input type="text" value={a.valor ?? ''} onChange={(e) => updateAccion(ai, { valor: e.target.value })}
-                                      placeholder="ej: Presupuesto_mayor_5000" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
-                                  </div>
-                                </>
-                              )}
-                              {a.tipo === 'escribir_campo_ghl_ia' && (
-                                <>
-                                  <div className="flex-1 min-w-[140px]">
-                                    <label className="flex items-center gap-1 text-[10px] font-medium text-accent-purple mb-0.5">
-                                      ID del campo de GHL
-                                      <HelpTooltip
-                                        titulo="Campo de GHL (IA)"
-                                        contenido={'El id o key de un custom field que YA existe en tu GHL. La IA escribirá ahí lo que le pidas en el mini-prompt. Si el campo no existe, no hace nada (no rompe).'}
-                                        comoProbar={'En GHL: Settings → Custom Fields. Copia el "Field Key" (ej. resumen_interes) o su id.'}
-                                      />
-                                    </label>
-                                    <input type="text" value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
-                                      placeholder="ej: resumen_interes" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                                  </div>
-                                  <div className="w-full">
-                                    <label className="flex items-center gap-1 text-[10px] font-medium text-accent-purple mb-0.5">
-                                      Mini-prompt
-                                      <HelpTooltip
-                                        titulo="Llenar campo de GHL con IA"
-                                        contenido={'Si se cumple la condición en la llamada/cita, la IA escribe en ese campo de GHL lo que le pidas en el mini-prompt. Ej: condición "el lead menciona un inmueble" → campo "inmueble_interes" → prompt "escribe el inmueble que mencionó".'}
-                                        comoProbar={'Crea la regla, espera una llamada/cita que cumpla la condición, y revisa el campo del contacto en GHL — verás el texto generado por la IA.'}
-                                      />
-                                    </label>
-                                    <textarea value={a.prompt ?? ''} onChange={(e) => updateAccion(ai, { prompt: e.target.value })}
-                                      placeholder="ej: Resume en 1 frase por qué el lead está interesado"
-                                      className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-purple/40" />
-                                  </div>
-                                </>
-                              )}
-                              {a.tipo === 'cambiar_estado' && (
-                                <div className="flex-1 min-w-[120px]">
-                                  <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">Estado</label>
-                                  <input type="text" value={a.valor ?? ''} onChange={(e) => updateAccion(ai, { valor: e.target.value })}
-                                    placeholder="nuevo_estado" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40" />
-                                </div>
-                              )}
-                              {a.tipo === 'etapa_cambiada' && (
-                                <div className="flex-1 min-w-[140px]">
-                                  <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Etapa del embudo</label>
-                                  <select value={a.funnelStage ?? ''} onChange={(e) => updateAccion(ai, { funnelStage: e.target.value || undefined, valor: e.target.value || undefined })}
-                                    className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
-                                    <option value="">— Seleccionar —</option>
-                                    {embudoEtapas.map((e) => (<option key={e.id} value={e.nombre}>{e.nombre}</option>))}
-                                  </select>
-                                </div>
-                              )}
-                              {a.tipo === 'incrementar_metrica' && (
-                                <>
-                                  <div className="flex-1 min-w-[140px]">
-                                    <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">Métrica</label>
-                                    <select value={a.metrica_id ?? ''} onChange={(e) => updateAccion(ai, { metrica_id: e.target.value || undefined })}
-                                      className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
-                                      <option value="">— Seleccionar —</option>
-                                      {metricasConfig
-                                        .filter((m) => m.tipo === 'manual' || m.tipo === 'fija' || m.tipo === 'webhook')
-                                        .sort((a, b) => { const order: Record<string, number> = { manual: 0, fija: 1, webhook: 2 }; return (order[a.tipo] ?? 9) - (order[b.tipo] ?? 9); })
-                                        .map((m) => (<option key={m.id} value={m.id}>{m.nombre}{m.tipo === 'webhook' ? ' (webhook)' : ''}</option>))}
-                                    </select>
-                                  </div>
-                                  <div className="w-20">
-                                    <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">+</label>
-                                    <input type="number" min="1" value={a.metrica_incremento ?? 1} onChange={(e) => updateAccion(ai, { metrica_incremento: parseInt(e.target.value) || 1 })}
-                                      className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white" />
-                                  </div>
-                                </>
-                              )}
-                              {a.tipo === 'asignar_categoria' && categoriasLlamadas.length > 0 && (
-                                <div className="flex-1 min-w-[140px]">
-                                  <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Categoría</label>
-                                  <select value={a.categoria_id ?? ''} onChange={(e) => updateAccion(ai, { categoria_id: e.target.value || undefined })}
-                                    className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
-                                    <option value="">— Seleccionar categoría —</option>
-                                    {categoriasLlamadas.map((cat) => (<option key={cat.id} value={cat.id}>{cat.nombre}</option>))}
-                                  </select>
-                                </div>
-                              )}
-                              {r.acciones.length > 1 && (
-                                <button type="button" onClick={() => removeAccion(ai)} className="text-gray-500 hover:text-red-400 transition-colors p-1">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        <button type="button" onClick={addAccion}
-                          className="text-[11px] text-accent-amber hover:text-accent-amber/80 transition-colors flex items-center gap-1">
-                          <Plus className="w-3 h-3" /> Agregar acción
-                        </button>
-                      </div>
-
-                      {/* ── Bloquear etiquetas si esta regla aplica ── */}
-                      <div className="rounded-lg p-3 bg-surface-600/30 border border-surface-500 space-y-2">
-                        <div className="flex items-center gap-1.5">
-                          <label className="text-[11px] font-medium text-gray-400">Bloquear etiquetas si esta regla aplica</label>
-                          <HelpTooltip
-                            titulo="¿Qué hace esto?"
-                            contenido="Cuando esta regla se cumple, las etiquetas seleccionadas aquí NO se aplicarán al lead, aunque otra regla las active. Útil para que etiquetas superiores (ej. INTERESADO) bloqueen etiquetas inferiores contradictorias (ej. no_califica)."
-                          />
-                        </div>
-                        {(() => {
-                          const allTags = tagRules
-                            .flatMap((tr) => tr.acciones.filter((a) => a.tipo === 'asignar_etiqueta' && a.valor).map((a) => a.valor as string))
-                            .filter((v, i, arr) => arr.indexOf(v) === i)
-                            .filter((v) => !r.acciones.some((a) => a.tipo === 'asignar_etiqueta' && a.valor === v));
-                          const currentExcluye = r.excluye ?? [];
-                          if (allTags.length === 0) {
-                            return <p className="text-[10px] text-gray-500 italic">No hay otras etiquetas configuradas en las reglas.</p>;
-                          }
-                          return (
-                            <div className="flex flex-wrap gap-1.5">
-                              {allTags.map((tag) => {
-                                const selected = currentExcluye.includes(tag);
-                                return (
-                                  <button
-                                    key={tag}
-                                    type="button"
-                                    onClick={() => {
-                                      const next = selected
-                                        ? currentExcluye.filter((t) => t !== tag)
-                                        : [...currentExcluye, tag];
-                                      updateRule({ excluye: next });
-                                    }}
-                                    className={`px-2 py-1 rounded text-[11px] font-medium border transition-colors ${
-                                      selected
-                                        ? 'bg-red-500/20 text-red-400 border-red-500/40'
-                                        : 'bg-surface-600 text-gray-400 border-surface-500 hover:border-gray-400'
-                                    }`}
-                                  >
-                                    {selected ? '✕ ' : ''}{tag}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      <div className="flex justify-end">
-                        <button type="button" onClick={() => setTagRules((prev) => prev.filter((x) => x.id !== r.id))}
-                          className="text-[10px] text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1">
-                          <Trash2 className="w-3 h-3" /> Eliminar regla
-                        </button>
-                      </div>
-                    {/* Bloque "Valor dinámico" oculto de la UI tras el pivote de AUT-1241 (modelo simple condición→acción).
-                        Se conserva el código y el schema `dynamicValue` para retro-compatibilidad con reglas existentes. */}
-                    {MOSTRAR_VALOR_DINAMICO && r.acciones.some(a => a.tipo === 'asignar_etiqueta') && (
-                      <div className="rounded-lg border border-surface-500 bg-surface-800/50 p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={!!r.dynamicValue}
-                              onChange={(e) => {
-                                setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                  ...x,
-                                  dynamicValue: e.target.checked ? { fuente: 'custom_field' as const, tipo: 'texto' as const } : undefined,
-                                } : x));
-                              }}
-                              className="rounded border-surface-500 bg-surface-600 text-accent-cyan focus:ring-accent-cyan/40"
-                            />
-                            <span className="text-[11px] font-medium text-accent-cyan">Valor dinámico</span>
-                          </label>
-                          <span className="text-[10px] text-gray-500">Resuelve el valor desde un campo del contacto</span>
-                        </div>
-                        {r.dynamicValue && (
-                          <div className="space-y-2 pl-4 border-l-2 border-accent-cyan/30">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <div className="flex items-center gap-1 mb-1">
-                                  <label className="text-[10px] font-medium text-gray-400">Fuente</label>
-                                  <HelpTooltip
-                                    titulo="¿De dónde sale el valor?"
-                                    contenido={`Elige de dónde se lee el valor dinámico:\n\n• Campo personalizado (GHL) → lee un custom field del contacto en GoHighLevel.\n• Fórmula → calcula un valor a partir de otros campos (avanzado).`}
-                                  />
-                                </div>
-                                <select
-                                  value={r.dynamicValue.fuente}
-                                  onChange={(e) => setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                    ...x, dynamicValue: { ...x.dynamicValue!, fuente: e.target.value as 'custom_field' | 'formula' },
-                                  } : x))}
-                                  className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white"
-                                >
-                                  <option value="custom_field">Campo personalizado (GHL)</option>
-                                  <option value="formula">Fórmula</option>
-                                </select>
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-1 mb-1">
-                                  <label className="text-[10px] font-medium text-gray-400">Tipo de dato</label>
-                                  <HelpTooltip
-                                    titulo="¿Qué es el tipo de dato?"
-                                    contenido={`Indica qué tipo de valor tiene el campo del contacto:\n\n• Texto → se usa tal cual como etiqueta (ej. "Premium")\n• Número → puedes definir rangos para convertirlo en etiqueta (ej. 75000 → "Medio")\n• Sí / No → asigna una etiqueta distinta según si el valor es verdadero o falso\n• Fecha → se usa la fecha tal cual`}
-                                  />
-                                </div>
-                                <select
-                                  value={r.dynamicValue.tipo ?? 'texto'}
-                                  onChange={(e) => setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                    ...x, dynamicValue: { ...x.dynamicValue!, tipo: e.target.value as 'numero' | 'si_no' | 'texto' | 'fecha' },
-                                  } : x))}
-                                  className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white"
-                                >
-                                  <option value="texto">Texto (valor tal cual)</option>
-                                  <option value="numero">Número (con rangos opcionales)</option>
-                                  <option value="si_no">Sí / No</option>
-                                  <option value="fecha">Fecha</option>
-                                </select>
-                              </div>
-                            </div>
-                            {r.dynamicValue.fuente === 'custom_field' && (
-                              <div>
-                                <div className="flex items-center gap-1 mb-1">
-                                  <label className="text-[10px] font-medium text-gray-400">ID del campo en GHL</label>
-                                  <HelpTooltip
-                                    titulo="¿Qué poner aquí?"
-                                    contenido={`Escribe el ID o key de un campo personalizado (custom field) que ya exista en tu cuenta de GoHighLevel.\n\nEjemplos:\n• presupuesto_mensual\n• numero_empleados\n• ingreso_anual\n\nEl sistema lee el valor de ese campo desde el contacto. Si el campo no existe o está vacío, simplemente no se asigna la etiqueta (no causa error).`}
-                                    comoProbar="Ve a GHL → Contactos → Custom Fields. Copia el ID del campo que quieras usar y pégalo aquí."
-                                  />
-                                </div>
-                                <input
-                                  type="text"
-                                  value={r.dynamicValue.fieldId ?? ''}
-                                  onChange={(e) => setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                    ...x, dynamicValue: { ...x.dynamicValue!, fieldId: e.target.value || undefined },
-                                  } : x))}
-                                  placeholder="ej: presupuesto_mensual"
-                                  className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white focus:ring-2 focus:ring-accent-cyan/40"
-                                />
-                              </div>
-                            )}
-                            {r.dynamicValue.fuente === 'formula' && (
-                              <div>
-                                <label className="block text-[10px] font-medium text-gray-400 mb-1">Fórmula</label>
-                                <input
-                                  type="text"
-                                  value={r.dynamicValue.formula ?? ''}
-                                  onChange={(e) => setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                    ...x, dynamicValue: { ...x.dynamicValue!, formula: e.target.value || undefined },
-                                  } : x))}
-                                  placeholder="ej: campo_a / campo_b * 100"
-                                  className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white focus:ring-2 focus:ring-accent-cyan/40"
-                                />
-                              </div>
-                            )}
-                            {(r.dynamicValue.tipo ?? 'texto') === 'si_no' && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <label className="text-[10px] font-medium text-gray-400">Etiqueta si es Sí</label>
-                                    <HelpTooltip
-                                      titulo="Etiqueta para Sí"
-                                      contenido={`Texto que se asigna como etiqueta cuando el valor del campo es verdadero (true, "yes", "sí", 1).\n\nEjemplo: si el campo es "tiene_presupuesto" y el valor es Sí → se asigna esta etiqueta.`}
-                                    />
-                                  </div>
-                                  <input
-                                    type="text"
-                                    value={r.dynamicValue.labelSi ?? ''}
-                                    onChange={(e) => setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                      ...x, dynamicValue: { ...x.dynamicValue!, labelSi: e.target.value || undefined },
-                                    } : x))}
-                                    placeholder="ej: Con presupuesto"
-                                    className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white focus:ring-2 focus:ring-accent-cyan/40"
-                                  />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <label className="text-[10px] font-medium text-gray-400">Etiqueta si es No</label>
-                                    <HelpTooltip
-                                      titulo="Etiqueta para No"
-                                      contenido={`Texto que se asigna como etiqueta cuando el valor del campo es falso (false, "no", 0, vacío).\n\nEjemplo: si el campo es "tiene_presupuesto" y el valor es No → se asigna esta etiqueta.`}
-                                    />
-                                  </div>
-                                  <input
-                                    type="text"
-                                    value={r.dynamicValue.labelNo ?? ''}
-                                    onChange={(e) => setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                      ...x, dynamicValue: { ...x.dynamicValue!, labelNo: e.target.value || undefined },
-                                    } : x))}
-                                    placeholder="ej: Sin presupuesto"
-                                    className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white focus:ring-2 focus:ring-accent-cyan/40"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            {(r.dynamicValue.tipo === 'numero' || (!r.dynamicValue.tipo && (r.dynamicValue.ranges?.length ?? 0) > 0)) && (
-                            <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-1">
-                                  <label className="text-[10px] font-medium text-gray-400">Rangos (opcional)</label>
-                                  <HelpTooltip
-                                    titulo="¿Cómo funcionan los rangos?"
-                                    contenido={`Los rangos convierten un número en una etiqueta de texto por tramos.\n\nEjemplo con 3 rangos:\n• ≥ 0 → "Bajo"\n• ≥ 50000 → "Medio"\n• ≥ 100000 → "Alto"\n\nSi el valor del campo es 75000 → la etiqueta será "Medio" (el rango más alto cuyo mínimo no supera 75000).\n\nSin rangos, el valor numérico se usa tal cual como etiqueta.`}
-                                  />
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                    ...x, dynamicValue: { ...x.dynamicValue!, ranges: [...(x.dynamicValue?.ranges ?? []), { min: 0, label: '' }] },
-                                  } : x))}
-                                  className="text-[10px] text-accent-cyan hover:text-accent-cyan/80"
-                                >
-                                  + Rango
-                                </button>
-                              </div>
-                              {(r.dynamicValue.ranges ?? []).map((range, ri) => (
-                                <div key={ri} className="flex items-center gap-2 mb-1">
-                                  <input
-                                    type="number"
-                                    value={range.min}
-                                    onChange={(e) => {
-                                      const newRanges = [...(r.dynamicValue?.ranges ?? [])];
-                                      newRanges[ri] = { ...newRanges[ri], min: parseFloat(e.target.value) || 0 };
-                                      setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                        ...x, dynamicValue: { ...x.dynamicValue!, ranges: newRanges },
-                                      } : x));
-                                    }}
-                                    placeholder="≥"
-                                    className="w-20 rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white"
-                                  />
-                                  <span className="text-[10px] text-gray-500">→</span>
-                                  <input
-                                    type="text"
-                                    value={range.label}
-                                    onChange={(e) => {
-                                      const newRanges = [...(r.dynamicValue?.ranges ?? [])];
-                                      newRanges[ri] = { ...newRanges[ri], label: e.target.value };
-                                      setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                        ...x, dynamicValue: { ...x.dynamicValue!, ranges: newRanges },
-                                      } : x));
-                                    }}
-                                    placeholder="Etiqueta del rango"
-                                    className="flex-1 rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newRanges = (r.dynamicValue?.ranges ?? []).filter((_, i) => i !== ri);
-                                      setTagRules((prev) => prev.map((x) => x.id === r.id ? {
-                                        ...x, dynamicValue: { ...x.dynamicValue!, ranges: newRanges.length ? newRanges : undefined },
-                                      } : x));
-                                    }}
-                                    className="text-gray-500 hover:text-red-400"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    </li>
-                  );
-                })}
-              </ul>
-              <button type="button" onClick={addTagRule} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-accent-amber/20 text-accent-amber border border-accent-amber/40 hover:bg-accent-amber/30 transition-all">
-                <Tag className="w-4 h-4" /> + Añadir regla
-              </button>
             </div>
           )}
 
@@ -2287,651 +2026,6 @@ export default function SystemPage() {
             </div>
           )}
 
-          {currentStep === 9 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
-                <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40"><Sparkles className="w-5 h-5 text-accent-purple" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Motor IA</h3>
-                  <p className="text-sm text-gray-400">Toda la inteligencia del sistema funciona con Google Gemini.</p>
-                </div>
-              </div>
-              <div className="rounded-lg border border-accent-purple/30 bg-accent-purple/5 px-4 py-4 space-y-3">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="w-5 h-5 text-accent-purple shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-white">Para usar las funciones de IA necesitas configurar tu API key de Gemini.</p>
-                    <p className="text-xs text-gray-400 mt-1">El análisis de chats, llamadas, citas, reportes cualitativos y el coach de ventas funcionan con Google Gemini (modelo <code className="text-accent-purple">gemini-2.5-flash</code>). Sin llave propia, estas secciones aparecen bloqueadas.</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(13)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-purple text-white text-sm font-semibold hover:bg-accent-purple/90 transition-colors"
-                >
-                  <Key className="w-4 h-4" />
-                  Configurar llave de Gemini (Paso 13)
-                </button>
-              </div>
-              <div className="rounded-lg border border-surface-500 bg-surface-700/40 px-3 py-3 text-xs text-gray-400 space-y-2">
-                <p className="font-semibold text-gray-300">Costos estimados con Gemini 2.5 Flash</p>
-                <div className="space-y-1 text-gray-500">
-                  <p>Entrada: <span className="text-accent-amber">$0.30 / 1M tokens</span> · Salida: <span className="text-accent-amber">$2.50 / 1M tokens</span></p>
-                  <p>Estimado por chat analizado: ~<span className="text-accent-green">$0.0004 USD</span></p>
-                  <p>Estimado por llamada (transcripción + análisis): ~<span className="text-accent-green">$0.001 USD</span></p>
-                </div>
-                <div className="border-t border-surface-600 pt-2 flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-green shrink-0 mt-0.5" />
-                  <p className="text-gray-400"><strong className="text-white">Somos transparentes contigo:</strong> solo te cobramos lo que consumes. Tu llave va directo a tu cuenta de Google AI Studio — los costos son tuyos, sin markup.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 12 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-green/30">
-                <div className="rounded-lg p-2 bg-accent-green/20 border border-accent-green/40"><ShieldCheck className="w-5 h-5 text-accent-green" /></div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-lg font-semibold text-white">Coach de ventas</h3>
-                    <HelpTooltip
-                      titulo="¿Qué es el Coach de ventas?"
-                      contenido="El Coach evalúa automáticamente llamadas, chats y videollamadas contra un guion modelo que tú defines. La IA compara lo que dijo el asesor con las secciones del guion y genera un score de cumplimiento. Si el score queda debajo del umbral, se aplican tags y una nota con lo que faltó."
-                    />
-                  </div>
-                  <p className="text-sm text-gray-400">Define guiones por canal. La IA evalúa cada interacción contra el guion y aplica tags + notas según cumplimiento.</p>
-                </div>
-              </div>
-
-              <PremiumGate hasGeminiKey={hasGeminiKey} premiumStatus={geminiPremiumStatus}>
-              {coachLoading && (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-5 h-5 animate-spin text-accent-green mr-2" />
-                  <span className="text-sm text-gray-400">Cargando configuración del coach...</span>
-                </div>
-              )}
-
-              {coachHabilitado === false && !coachLoading && (
-                <div className="rounded-xl p-5 border border-surface-500 bg-surface-800/50 text-center space-y-2">
-                  <ShieldCheck className="w-8 h-8 text-gray-600 mx-auto" />
-                  <p className="text-sm text-gray-400">El Coach de ventas no está habilitado para esta cuenta.</p>
-                  <p className="text-xs text-gray-500">Contacta al equipo de LeadMaster para activar esta función.</p>
-                </div>
-              )}
-
-              {coachHabilitado === null && !coachLoading && (
-                <div className="rounded-xl p-5 border border-amber-500/30 bg-amber-500/5 text-center space-y-2">
-                  <AlertTriangle className="w-6 h-6 text-amber-400 mx-auto" />
-                  <p className="text-sm text-gray-400">No se pudo verificar el estado del coach.</p>
-                  <button type="button" onClick={loadCoachData} className="text-xs text-accent-cyan hover:underline">Reintentar</button>
-                </div>
-              )}
-
-              {coachHabilitado === true && !coachLoading && (
-                <div className="space-y-4">
-                  {/* ── Canal tabs ── */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-gray-400 font-medium mr-1">Canal:</span>
-                    {([
-                      { canal: 'llamada' as CanalCoach, label: 'Llamadas', icon: <Phone className="w-3.5 h-3.5" /> },
-                      { canal: 'chat' as CanalCoach, label: 'Chats', icon: <MessageSquare className="w-3.5 h-3.5" /> },
-                      { canal: 'videollamada' as CanalCoach, label: 'Videollamadas', icon: <Video className="w-3.5 h-3.5" /> },
-                    ] as const).map(({ canal, label, icon }) => (
-                      <button
-                        key={canal}
-                        type="button"
-                        onClick={() => { setCoachCanalActivo(canal); setCoachEditCatId(null); }}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                          coachCanalActivo === canal
-                            ? 'bg-accent-green/20 text-accent-green border-accent-green/40'
-                            : 'bg-surface-700 text-gray-400 border-surface-500 hover:border-gray-400'
-                        }`}
-                      >
-                        {icon} {label}
-                        {guionesCoach.filter((g) => (g.canal ?? 'llamada') === canal).length > 0 && (
-                          <span className="ml-0.5 px-1 py-0 rounded text-[9px] bg-accent-green/30 text-accent-green">
-                            {guionesCoach.filter((g) => (g.canal ?? 'llamada') === canal).length}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                    <HelpTooltip
-                      titulo="Canales del coach"
-                      contenido="Puedes definir guiones separados para cada canal de comunicación. Para Llamadas, los guiones se organizan por categoría de llamada (definidas en el Paso 3). Para Chats y Videollamadas, puedes configurar un guion general que se aplica a todas las interacciones de ese canal."
-                    />
-                  </div>
-
-                  {/* ── Guiones per canal ── */}
-                  {coachCanalActivo === 'llamada' && categoriasLlamadas.length === 0 && (
-                    <div className="rounded-xl p-4 border border-amber-500/30 bg-amber-500/5 flex items-start gap-3">
-                      <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-white font-medium">Primero crea categorías de llamada</p>
-                        <p className="text-xs text-gray-400 mt-1">Para configurar guiones de llamada, necesitas al menos una categoría definida en el Paso 3.</p>
-                        <button type="button" onClick={() => setCurrentStep(3)} className="text-xs text-accent-cyan hover:underline mt-1">Ir al Paso 3</button>
-                      </div>
-                    </div>
-                  )}
-
-                  {(() => {
-                    const canalLabel = coachCanalActivo === 'llamada' ? 'llamada' : coachCanalActivo === 'chat' ? 'chat' : 'videollamada';
-                    const items: { id: string; nombre: string }[] = coachCanalActivo === 'llamada'
-                      ? categoriasLlamadas
-                      : [{ id: `_general_${coachCanalActivo}`, nombre: coachCanalActivo === 'chat' ? 'Guion general de chats' : 'Guion general de videollamadas' }];
-
-                    if (items.length === 0) return null;
-
-                    return (
-                      <>
-                        <div className="rounded-xl p-3 border border-accent-green/20 bg-accent-green/5 flex items-start gap-2">
-                          <Info className="w-4 h-4 text-accent-green shrink-0 mt-0.5" />
-                          <p className="text-xs text-gray-400">
-                            {coachCanalActivo === 'llamada'
-                              ? <>Cada categoría puede tener su propio guion. La IA evalúa cada llamada con transcript válido contra las secciones del guion.</>
-                              : <>La IA evalúa cada {canalLabel} con contenido válido contra las secciones del guion.</>
-                            }
-                            {' '}Secciones <span className="text-accent-green font-medium">must-have</span> que falten generan tag de incumplimiento; secciones <span className="text-gray-300">deseables</span> solo generan una nota suave.
-                          </p>
-                        </div>
-
-                        <ul className="space-y-3">
-                          {items.map((cat) => {
-                            const guion = guionesCoach.find((g) => g.categoria_llamada_id === cat.id && (g.canal ?? 'llamada') === coachCanalActivo);
-                            const isEditing = coachEditCatId === cat.id;
-
-                            const startEditing = () => {
-                              setCoachEditCatId(cat.id);
-                              if (guion) {
-                                setCoachSecciones(guion.secciones.map((s) => ({ ...s })));
-                                setCoachUmbral(guion.umbral);
-                                setCoachNotaCumplido(guion.nota_cumplido ?? '');
-                                setCoachNotaNoCumplido(guion.nota_no_cumplido ?? '');
-                                setCoachTagsCumplido(guion.tags_cumplido ?? []);
-                                setCoachTagsNoCumplido(guion.tags_no_cumplido ?? []);
-                              } else {
-                                setCoachSecciones(DEFAULT_SECCIONES.map((s) => ({ ...s })));
-                                setCoachUmbral(70);
-                                setCoachNotaCumplido('');
-                                setCoachNotaNoCumplido('');
-                                setCoachTagsCumplido([]);
-                                setCoachTagsNoCumplido([]);
-                              }
-                              setCoachTagInput('');
-                              setCoachTagNoCumplInput('');
-                            };
-
-                            return (
-                              <li key={cat.id} className="rounded-xl border border-surface-500 bg-gradient-to-b from-surface-700/90 to-surface-800/90 overflow-hidden">
-                                <div className="p-3 flex items-center gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-sm font-medium text-white truncate">{cat.nombre}</p>
-                                      {guion && (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent-green/15 text-accent-green border border-accent-green/30">
-                                          v{guion.version}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {guion ? (
-                                      <p className="text-[11px] text-gray-500 mt-0.5">
-                                        {guion.secciones.length} secciones · Umbral: {guion.umbral}%
-                                        {guion.secciones.filter((s) => s.tipo === 'must_have').length > 0 && (
-                                          <> · <span className="text-accent-green">{guion.secciones.filter((s) => s.tipo === 'must_have').length} must-have</span></>
-                                        )}
-                                        {(guion.tags_cumplido?.length ?? 0) > 0 && <> · {guion.tags_cumplido?.length} tags</>}
-                                      </p>
-                                    ) : (
-                                      <p className="text-[11px] text-gray-500 mt-0.5">Sin guion configurado</p>
-                                    )}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => isEditing ? setCoachEditCatId(null) : startEditing()}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                                      isEditing
-                                        ? 'bg-surface-600 text-gray-300 border-surface-500'
-                                        : guion
-                                          ? 'bg-accent-green/20 text-accent-green border-accent-green/40 hover:bg-accent-green/30'
-                                          : 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/40 hover:bg-accent-cyan/30'
-                                    }`}
-                                  >
-                                    {isEditing ? 'Cerrar' : guion ? 'Editar guion' : 'Configurar guion'}
-                                  </button>
-                                  {guion && !isEditing && (
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteCoachGuion(cat.id, coachCanalActivo)}
-                                      disabled={coachSaving}
-                                      className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 disabled:opacity-50"
-                                      title="Eliminar guion"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-
-                                {isEditing && (
-                                  <div className="border-t border-surface-500 p-4 space-y-4">
-                                    {guion && (
-                                      <div className="rounded-lg p-2.5 bg-amber-500/10 border border-amber-500/30 flex items-start gap-2">
-                                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                                        <p className="text-[11px] text-amber-300/90">Editar el guion crea una nueva versión (v{guion.version + 1}). Las interacciones pendientes se re-evaluarán con el nuevo guion.</p>
-                                      </div>
-                                    )}
-
-                                    {/* ── Secciones ── */}
-                                    <div className="space-y-3">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-1.5">
-                                          <label className="text-xs font-medium text-accent-green">Secciones del guion</label>
-                                          <HelpTooltip
-                                            titulo="Secciones del guion"
-                                            contenido="Cada sección representa un bloque del guion que el asesor debe cubrir. Las secciones 'must-have' son obligatorias: si faltan, se genera un tag de incumplimiento. Las secciones 'deseables' son recomendadas pero su ausencia solo genera una nota suave, sin penalizar el score."
-                                          />
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => setCoachSecciones((prev) => [
-                                            ...prev,
-                                            { id: crypto.randomUUID(), nombre: '', criterio: '', tipo: 'deseable' },
-                                          ])}
-                                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-accent-green/20 text-accent-green border border-accent-green/40 hover:bg-accent-green/30"
-                                        >
-                                          <Plus className="w-3 h-3" /> Sección
-                                        </button>
-                                      </div>
-
-                                      {coachSecciones.map((sec, idx) => (
-                                        <div key={sec.id} className="rounded-lg p-3 bg-surface-600/50 border border-surface-500 space-y-2">
-                                          <div className="flex items-center gap-2">
-                                            <input
-                                              type="text"
-                                              value={sec.nombre}
-                                              onChange={(e) => setCoachSecciones((prev) => prev.map((s, i) => i === idx ? { ...s, nombre: e.target.value } : s))}
-                                              placeholder="Nombre de la sección"
-                                              className="flex-1 rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40"
-                                            />
-                                            <button
-                                              type="button"
-                                              onClick={() => setCoachSecciones((prev) => prev.map((s, i) => i === idx ? { ...s, tipo: s.tipo === 'must_have' ? 'deseable' : 'must_have' } : s))}
-                                              className={`shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
-                                                sec.tipo === 'must_have'
-                                                  ? 'bg-accent-green/20 text-accent-green border-accent-green/40'
-                                                  : 'bg-surface-700 text-gray-400 border-surface-500 hover:border-gray-400'
-                                              }`}
-                                            >
-                                              {sec.tipo === 'must_have' ? 'Must-have' : 'Deseable'}
-                                            </button>
-                                            {coachSecciones.length > 1 && (
-                                              <button
-                                                type="button"
-                                                onClick={() => setCoachSecciones((prev) => prev.filter((_, i) => i !== idx))}
-                                                className="p-1 text-gray-500 hover:text-red-400"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </button>
-                                            )}
-                                          </div>
-                                          <div className="flex items-center gap-1.5 mb-1">
-                                            <label className="text-[11px] text-gray-400">Criterio de evaluación</label>
-                                            <HelpTooltip
-                                              titulo="Criterio de evaluación"
-                                              contenido="Describe qué debe cubrir el asesor en esta sección. La IA compara el transcript contra este criterio. Sé específico: en vez de 'saludar', escribe 'el asesor debe presentarse con nombre, empresa y preguntar el nombre del prospecto'."
-                                            />
-                                          </div>
-                                          <textarea
-                                            value={sec.criterio}
-                                            onChange={(e) => setCoachSecciones((prev) => prev.map((s, i) => i === idx ? { ...s, criterio: e.target.value } : s))}
-                                            placeholder="¿Qué debe cubrir el asesor en esta sección? (criterio de evaluación)"
-                                            className="w-full rounded-lg bg-surface-700 border border-surface-500 p-2 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-green/40"
-                                          />
-                                        </div>
-                                      ))}
-                                    </div>
-
-                                    {/* ── Umbral ── */}
-                                    <div className="pt-2 border-t border-surface-500">
-                                      <div className="flex items-center gap-1.5 mb-2">
-                                        <label className="text-xs font-medium text-accent-green">Umbral de cumplimiento: {coachUmbral}%</label>
-                                        <HelpTooltip
-                                          titulo="Umbral de cumplimiento"
-                                          contenido="Porcentaje mínimo que el asesor debe alcanzar para que la interacción se considere 'cumple'. Si el score queda por debajo, se aplican los tags de incumplimiento y la nota correspondiente."
-                                        />
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <input type="range" min={0} max={100} step={5} value={coachUmbral} onChange={(e) => setCoachUmbral(Number(e.target.value))} className="flex-1 accent-accent-green" />
-                                        <input type="number" min={0} max={100} value={coachUmbral} onChange={(e) => setCoachUmbral(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} className="w-16 rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white text-center focus:ring-2 focus:ring-accent-green/40" />
-                                      </div>
-                                    </div>
-
-                                    {/* ── Notas condicionadas ── */}
-                                    <div className="pt-2 border-t border-surface-500 space-y-3">
-                                      <div className="flex items-center gap-1.5">
-                                        <label className="text-xs font-medium text-accent-green">Notas condicionadas</label>
-                                        <HelpTooltip
-                                          titulo="Notas condicionadas"
-                                          contenido="Instrucciones extra para la IA al generar la nota accionable del asesor. 'Nota si cumple' se aplica cuando el score supera el umbral (ej: 'Felicitar al asesor'). 'Nota si no cumple' se aplica cuando falla (ej: 'Indicar exactamente qué secciones faltaron y sugerir cómo mejorar')."
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <div>
-                                          <label className="text-[11px] text-gray-400 block mb-1">Nota si cumple el umbral</label>
-                                          <textarea
-                                            value={coachNotaCumplido}
-                                            onChange={(e) => setCoachNotaCumplido(e.target.value)}
-                                            placeholder="Instrucción para la IA cuando el asesor cumple (opcional)"
-                                            className="w-full rounded-lg bg-surface-700 border border-surface-500 p-2 text-sm text-white min-h-[40px] focus:ring-2 focus:ring-accent-green/40"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-[11px] text-gray-400 block mb-1">Nota si no cumple el umbral</label>
-                                          <textarea
-                                            value={coachNotaNoCumplido}
-                                            onChange={(e) => setCoachNotaNoCumplido(e.target.value)}
-                                            placeholder="Instrucción para la IA cuando el asesor no cumple (opcional)"
-                                            className="w-full rounded-lg bg-surface-700 border border-surface-500 p-2 text-sm text-white min-h-[40px] focus:ring-2 focus:ring-accent-green/40"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* ── Tags condicionados ── */}
-                                    <div className="pt-2 border-t border-surface-500 space-y-3">
-                                      <div className="flex items-center gap-1.5">
-                                        <label className="text-xs font-medium text-accent-green">Tags condicionados</label>
-                                        <HelpTooltip
-                                          titulo="Tags condicionados"
-                                          contenido="Tags de GHL que se aplican automáticamente al contacto según el resultado de la evaluación. 'Tags si cumple' se aplican cuando el score supera el umbral. 'Tags si no cumple' se aplican cuando falla — por defecto se aplica 'incumplimiento_guion_autoia' si no configuras ninguno."
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <div>
-                                          <label className="text-[11px] text-gray-400 block mb-1">Tags si cumple</label>
-                                          <div className="flex flex-wrap gap-1 mb-1">
-                                            {coachTagsCumplido.map((tag, i) => (
-                                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-accent-green/15 text-accent-green border border-accent-green/30">
-                                                {tag}
-                                                <button type="button" onClick={() => setCoachTagsCumplido((prev) => prev.filter((_, j) => j !== i))} className="hover:text-red-400">
-                                                  <Trash2 className="w-2.5 h-2.5" />
-                                                </button>
-                                              </span>
-                                            ))}
-                                          </div>
-                                          <div className="flex gap-1">
-                                            <input
-                                              type="text"
-                                              value={coachTagInput}
-                                              onChange={(e) => setCoachTagInput(e.target.value)}
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && coachTagInput.trim()) {
-                                                  e.preventDefault();
-                                                  setCoachTagsCumplido((prev) => [...prev, coachTagInput.trim()]);
-                                                  setCoachTagInput('');
-                                                }
-                                              }}
-                                              placeholder="Nombre del tag + Enter"
-                                              className="flex-1 rounded-lg bg-surface-700 border border-surface-500 px-2 py-1 text-xs text-white focus:ring-2 focus:ring-accent-green/40"
-                                            />
-                                            <button
-                                              type="button"
-                                              onClick={() => { if (coachTagInput.trim()) { setCoachTagsCumplido((prev) => [...prev, coachTagInput.trim()]); setCoachTagInput(''); } }}
-                                              className="px-2 py-1 rounded-lg text-[10px] font-medium bg-accent-green/20 text-accent-green border border-accent-green/40 hover:bg-accent-green/30"
-                                            >
-                                              <Plus className="w-3 h-3" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <label className="text-[11px] text-gray-400 block mb-1">Tags si no cumple <span className="text-gray-600">(default: incumplimiento_guion_autoia)</span></label>
-                                          <div className="flex flex-wrap gap-1 mb-1">
-                                            {coachTagsNoCumplido.map((tag, i) => (
-                                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-red-500/15 text-red-400 border border-red-500/30">
-                                                {tag}
-                                                <button type="button" onClick={() => setCoachTagsNoCumplido((prev) => prev.filter((_, j) => j !== i))} className="hover:text-red-300">
-                                                  <Trash2 className="w-2.5 h-2.5" />
-                                                </button>
-                                              </span>
-                                            ))}
-                                          </div>
-                                          <div className="flex gap-1">
-                                            <input
-                                              type="text"
-                                              value={coachTagNoCumplInput}
-                                              onChange={(e) => setCoachTagNoCumplInput(e.target.value)}
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && coachTagNoCumplInput.trim()) {
-                                                  e.preventDefault();
-                                                  setCoachTagsNoCumplido((prev) => [...prev, coachTagNoCumplInput.trim()]);
-                                                  setCoachTagNoCumplInput('');
-                                                }
-                                              }}
-                                              placeholder="Nombre del tag + Enter"
-                                              className="flex-1 rounded-lg bg-surface-700 border border-surface-500 px-2 py-1 text-xs text-white focus:ring-2 focus:ring-accent-green/40"
-                                            />
-                                            <button
-                                              type="button"
-                                              onClick={() => { if (coachTagNoCumplInput.trim()) { setCoachTagsNoCumplido((prev) => [...prev, coachTagNoCumplInput.trim()]); setCoachTagNoCumplInput(''); } }}
-                                              className="px-2 py-1 rounded-lg text-[10px] font-medium bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30"
-                                            >
-                                              <Plus className="w-3 h-3" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* ── Save/Cancel ── */}
-                                    <div className="flex gap-2 justify-end pt-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => setCoachEditCatId(null)}
-                                        className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white border border-surface-500 hover:border-surface-400"
-                                      >
-                                        Cancelar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => saveCoachGuion(cat.id, coachCanalActivo)}
-                                        disabled={coachSaving || coachSecciones.filter((s) => s.criterio.trim() && s.nombre.trim()).length === 0}
-                                        className="px-4 py-1.5 rounded-lg text-xs font-medium bg-accent-green/20 text-accent-green border border-accent-green/40 hover:bg-accent-green/30 disabled:opacity-50 flex items-center gap-1.5"
-                                      >
-                                        {coachSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                        {guion ? 'Actualizar guion' : 'Guardar guion'}
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </>
-                    );
-                  })()}
-
-                  {/* ── Excluir análisis ── */}
-                  <div className="pt-4 border-t border-surface-500 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-xs font-medium text-accent-green">Excluir del análisis</label>
-                        <HelpTooltip
-                          titulo="Excluir análisis del coach"
-                          contenido="Define reglas para excluir ciertas interacciones del análisis del coach. Por ejemplo: excluir llamadas con estado 'no_contesta', excluir chats de tipo 'automatizado', o excluir videollamadas de un tipo de evento específico. Las reglas se evalúan antes de enviar a la IA, ahorrando tokens."
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setExclusionesCoach((prev) => [...prev, { canal: 'todos', campo: 'estado_resultado', operador: 'eq', valor: '' }])}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-accent-green/20 text-accent-green border border-accent-green/40 hover:bg-accent-green/30"
-                      >
-                        <Plus className="w-3 h-3" /> Regla
-                      </button>
-                    </div>
-
-                    {exclusionesCoach.length === 0 && (
-                      <p className="text-[11px] text-gray-500">Sin exclusiones configuradas. Todas las interacciones con transcript válido serán evaluadas.</p>
-                    )}
-
-                    {exclusionesCoach.map((regla, idx) => (
-                      <div key={idx} className="rounded-lg p-3 bg-surface-600/50 border border-surface-500 flex flex-wrap items-center gap-2">
-                        <select
-                          value={regla.canal}
-                          onChange={(e) => setExclusionesCoach((prev) => prev.map((r, i) => i === idx ? { ...r, canal: e.target.value as ReglaExclusionCoach['canal'] } : r))}
-                          className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1 text-xs text-white"
-                        >
-                          <option value="todos">Todos los canales</option>
-                          <option value="llamada">Llamadas</option>
-                          <option value="chat">Chats</option>
-                          <option value="videollamada">Videollamadas</option>
-                        </select>
-                        <span className="text-[11px] text-gray-500">donde</span>
-                        <select
-                          value={regla.campo}
-                          onChange={(e) => setExclusionesCoach((prev) => prev.map((r, i) => i === idx ? { ...r, campo: e.target.value as ReglaExclusionCoach['campo'] } : r))}
-                          className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1 text-xs text-white"
-                        >
-                          <option value="estado_resultado">Estado resultado</option>
-                          <option value="tipo_evento">Tipo de evento</option>
-                          <option value="canal">Canal</option>
-                        </select>
-                        <select
-                          value={regla.operador}
-                          onChange={(e) => setExclusionesCoach((prev) => prev.map((r, i) => i === idx ? { ...r, operador: e.target.value as ReglaExclusionCoach['operador'] } : r))}
-                          className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1 text-xs text-white"
-                        >
-                          <option value="eq">es igual a</option>
-                          <option value="neq">no es igual a</option>
-                          <option value="contains">contiene</option>
-                          <option value="not_contains">no contiene</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={regla.valor}
-                          onChange={(e) => setExclusionesCoach((prev) => prev.map((r, i) => i === idx ? { ...r, valor: e.target.value } : r))}
-                          placeholder="Valor"
-                          className="flex-1 min-w-[120px] rounded-lg bg-surface-700 border border-surface-500 px-2 py-1 text-xs text-white focus:ring-2 focus:ring-accent-green/40"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setExclusionesCoach((prev) => prev.filter((_, i) => i !== idx))}
-                          className="p-1 text-gray-500 hover:text-red-400"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-
-                    {exclusionesCoach.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={saveExclusionesCoach}
-                        disabled={exclusionesCoachSaving}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green/20 text-accent-green border border-accent-green/40 hover:bg-accent-green/30 disabled:opacity-50"
-                      >
-                        {exclusionesCoachSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                        Guardar exclusiones
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-              </PremiumGate>
-            </div>
-          )}
-
-          {currentStep === 13 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
-                <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40"><Sparkles className="w-5 h-5 text-accent-purple" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Llave de Gemini (IA Premium)</h3>
-                  <p className="text-sm text-gray-400">Conectá tu llave de Google AI para desbloquear el análisis cualitativo con Gemini.</p>
-                </div>
-                <HelpTooltip
-                  titulo="Llave de Gemini"
-                  contenido="Gemini potencia el análisis cualitativo del reporte: objeciones, frases repetitivas, conclusiones, narrativas y el coach de ventas. Sin llave, estas secciones se muestran como bloqueadas."
-                  comoProbar="Ingresá tu API Key de Google AI Studio (aistudio.google.com) y guardá. Los reportes generados a partir de ese momento incluirán análisis cualitativo."
-                />
-                <span className={`ml-auto px-2 py-0.5 rounded text-xs font-semibold ${hasGeminiKey ? (geminiPremiumStatus && geminiPremiumStatus !== 'active' ? 'bg-accent-amber/20 text-accent-amber' : 'bg-accent-green/20 text-accent-green') : 'bg-surface-600 text-gray-500'}`}>
-                  {hasGeminiKey
-                    ? geminiPremiumStatus === 'paused_invalid_key'
-                      ? 'Llave inválida'
-                      : geminiPremiumStatus === 'paused_quota_exceeded'
-                        ? 'Sin saldo'
-                        : 'Activa'
-                    : 'No configurada'}
-                </span>
-              </div>
-
-              {!hasGeminiKey && (
-                <div className="rounded-lg border border-accent-purple/40 bg-accent-purple/5 px-4 py-3 flex items-start gap-3">
-                  <Sparkles className="w-5 h-5 text-accent-purple shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-white">Para usar estas funciones necesitas poner tu API key de Gemini.</p>
-                    <p className="text-xs text-gray-400 mt-1">El análisis cualitativo, reportes narrativos, coach de ventas y clasificación de chats/llamadas requieren tu llave de Google AI Studio. Es gratis para empezar.</p>
-                  </div>
-                </div>
-              )}
-
-              {geminiPremiumStatus === 'paused_invalid_key' && (
-                <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-300 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  Tu llave fue rechazada por Google. Ingresá una nueva llave válida.
-                </div>
-              )}
-              {geminiPremiumStatus === 'paused_quota_exceeded' && (
-                <div className="rounded-lg border border-accent-amber/30 bg-accent-amber/5 px-3 py-2 text-sm text-amber-300 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  Tu llave de Gemini se quedó sin saldo. Recargá tu cuenta en Google AI Studio para reactivar.
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                  {hasGeminiKey ? 'Reemplazar API Key' : 'Ingresar API Key'}
-                </label>
-                <input
-                  type="password"
-                  value={geminiKey}
-                  onChange={(e) => setGeminiKey(e.target.value)}
-                  placeholder="AIza..."
-                  className="w-full rounded-lg bg-surface-600 border border-surface-500 px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:ring-2 focus:ring-accent-purple/50 focus:border-accent-purple/50"
-                />
-                <p className="text-[11px] text-gray-500 mt-1.5">Tu key se guarda de forma segura y solo se usa para generar análisis cualitativos de tus conversaciones.</p>
-              </div>
-
-              <div className="rounded-lg border border-accent-purple/30 bg-accent-purple/5 px-3 py-2 text-sm text-gray-400 space-y-1">
-                <p><strong className="text-accent-purple">Funciones que desbloquea:</strong></p>
-                <ul className="list-disc list-inside text-gray-500 space-y-0.5">
-                  <li>Análisis de objeciones frecuentes de leads</li>
-                  <li>Frases repetitivas y patrones de conversación</li>
-                  <li>Conclusiones y narrativa ejecutiva por IA</li>
-                  <li>Análisis cualitativo por canal (llamadas, chats, video)</li>
-                  <li>Coach de ventas inteligente</li>
-                </ul>
-              </div>
-
-              <div className="rounded-lg border border-surface-500 bg-surface-800/60 px-3 py-2 text-sm text-gray-400">
-                <strong className="text-white">¿Dónde consigo la llave?</strong>
-                <p className="text-xs text-gray-500 mt-1">Andá a <code className="text-accent-purple">aistudio.google.com/apikey</code>, creá un proyecto y generá una API Key. El modelo usado es <code className="text-accent-purple">gemini-2.5-flash</code>.</p>
-              </div>
-
-              <div className="rounded-lg border border-surface-500 bg-surface-700/40 px-3 py-3 text-xs text-gray-400 space-y-2">
-                <p className="font-semibold text-gray-300">Costos estimados (Gemini 2.5 Flash)</p>
-                <div className="space-y-1 text-gray-500">
-                  <p>Entrada: <span className="text-accent-amber">$0.30 / 1M tokens</span> · Salida: <span className="text-accent-amber">$2.50 / 1M tokens</span></p>
-                  <p>Estimado por chat analizado: ~<span className="text-accent-green">$0.0004 USD</span></p>
-                  <p>Estimado por llamada: ~<span className="text-accent-green">$0.001 USD</span></p>
-                  <p>Estimado por reporte cualitativo: ~<span className="text-accent-green">$0.01 USD</span></p>
-                </div>
-                <div className="border-t border-surface-600 pt-2 flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-accent-green shrink-0 mt-0.5" />
-                  <p className="text-gray-300"><strong className="text-white">Somos transparentes contigo:</strong> solo te cobramos lo que consumes. Los costos van directamente a tu cuenta de Google AI Studio, sin markup ni sorpresas.</p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="flex flex-wrap justify-between items-center gap-3 pt-2 border-t border-surface-500/80">
