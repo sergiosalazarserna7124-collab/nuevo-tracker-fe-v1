@@ -52,6 +52,16 @@ export async function getLlamadas(
     gte(logLlamadas.ts, fromTs),
     lte(logLlamadas.ts, toTs),
     sql`${logLlamadas.tipo_evento} NOT IN ('pdte', 'contacto_creado')`,
+    // Ocultar llamadas de contactos 'no_trackeado' (etiqueta no_trackearlead):
+    // nunca fueron leads → no cuentan en esta vista ni en sus KPIs (leads,
+    // llamadas totales, intentos, speed to lead). log_llamadas no tiene
+    // bandera propia; se resuelve contra registros_de_llamada.
+    sql`NOT EXISTS (
+      SELECT 1 FROM registros_de_llamada r
+      WHERE r.id_cuenta = ${String(idCuenta)}
+        AND r.ghl_contact_id = ${logLlamadas.contact_id_ghl}
+        AND r.calificacion_manual = 'no_trackeado'
+    )`,
   ];
   // Filtro por tipo de evento aplicado ANTES del mapeo (mapTipoEvento colapsa efectiva_* en "answered")
   if (tipoEventos.length > 0) {

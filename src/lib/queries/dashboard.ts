@@ -627,6 +627,7 @@ export async function getDashboard(
   const speedRows = (await db.execute(sql`
     SELECT fecha_evento, fecha_asignacion, fecha_primera_llamada FROM registros_de_llamada
     WHERE id_cuenta = ${idCuenta}
+      AND excluido_metricas IS NOT TRUE
       AND fecha_primera_llamada IS NOT NULL
       AND fecha_primera_llamada >= ${fromDate} AND fecha_primera_llamada <= ${toDate}
   `)).rows as Array<{ fecha_evento: string | Date | null; fecha_asignacion: string | Date | null; fecha_primera_llamada: string | Date }>;

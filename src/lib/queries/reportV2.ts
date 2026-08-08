@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { cuentas } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { zonedDayRange } from "@/lib/date-range";
+import { sinNoTrackeadosSql } from "@/lib/queries/no-trackeado";
 import {
   getReportCalls,
   getReportChats,
@@ -134,6 +135,8 @@ async function getLlamadasCobertura(
         WHERE id_cuenta = ${idCuenta}
           AND ts BETWEEN ${fromTs} AND ${toTs}
           AND tipo_evento NOT IN ('pdte', 'contacto_creado')
+        AND ${sinNoTrackeadosSql(idCuenta)}
+          AND ${sinNoTrackeadosSql(idCuenta)}
       ) sub
       GROUP BY COALESCE(contact_id_ghl, mail_lead, phone)
     `),
@@ -148,6 +151,7 @@ async function getLlamadasCobertura(
       WHERE id_cuenta = ${idCuenta}
         AND ts BETWEEN ${fromTs} AND ${toTs}
         AND tipo_evento NOT IN ('pdte', 'contacto_creado')
+        AND ${sinNoTrackeadosSql(idCuenta)}
       GROUP BY 1
       ORDER BY 1
     `),
@@ -162,6 +166,7 @@ async function getLlamadasCobertura(
       WHERE id_cuenta = ${idCuenta}
         AND ts BETWEEN ${fromTs} AND ${toTs}
         AND tipo_evento NOT IN ('pdte', 'contacto_creado')
+        AND ${sinNoTrackeadosSql(idCuenta)}
         AND closer_mail IS NOT NULL
       GROUP BY 1, closer_mail
       ORDER BY 1, 3 DESC
@@ -261,11 +266,14 @@ async function getCanalesPorLead(
         WHERE id_cuenta = ${idCuenta}
           AND ts BETWEEN ${fromTs} AND ${toTs}
           AND tipo_evento NOT IN ('pdte', 'contacto_creado')
+        AND ${sinNoTrackeadosSql(idCuenta)}
+          AND ${sinNoTrackeadosSql(idCuenta)}
         UNION ALL
         SELECT COALESCE(id_lead::text, nombre_lead) AS lead_id, 'ch' AS fuente
         FROM chats_logs
         WHERE id_cuenta = ${idCuenta}
           AND fecha_y_hora_z BETWEEN ${fromTs} AND ${toTs}
+          AND excluida_dashboard IS NOT TRUE
       ) x
       WHERE lead_id IS NOT NULL
       GROUP BY lead_id
@@ -295,6 +303,7 @@ async function getUbicacionLada(
       AND ts BETWEEN ${fromTs} AND ${toTs}
       AND phone IS NOT NULL
       AND tipo_evento NOT IN ('pdte', 'contacto_creado')
+      AND ${sinNoTrackeadosSql(idCuenta)}
   `);
 
   const zonaCount: Record<string, number> = {};
@@ -345,6 +354,7 @@ async function getLeadsUnicosNuevosReactivados(
         FROM registros_de_llamada
         WHERE id_cuenta::text = ${String(idCuenta)}
           AND fecha_evento BETWEEN ${fromTs} AND ${toTs}
+          AND calificacion_manual IS DISTINCT FROM 'no_trackeado'
           AND COALESCE(ghl_contact_id, mail_lead, phone_raw_format) IS NOT NULL
       ),
       first_log AS (
@@ -354,6 +364,8 @@ async function getLeadsUnicosNuevosReactivados(
         FROM log_llamadas
         WHERE id_cuenta = ${idCuenta}
           AND tipo_evento NOT IN ('pdte', 'contacto_creado')
+        AND ${sinNoTrackeadosSql(idCuenta)}
+          AND ${sinNoTrackeadosSql(idCuenta)}
           AND COALESCE(contact_id_ghl, mail_lead, phone) IN (
             SELECT lead_key FROM call_leads WHERE fecha_primera_llamada IS NULL
           )
@@ -377,6 +389,7 @@ async function getLeadsUnicosNuevosReactivados(
         FROM chats_logs
         WHERE id_cuenta = ${idCuenta}
           AND fecha_y_hora_z BETWEEN ${fromTs} AND ${toTs}
+          AND excluida_dashboard IS NOT TRUE
           AND COALESCE(id_lead, nombre_lead) IS NOT NULL
       )
       SELECT
@@ -477,6 +490,7 @@ async function getCitasPorAsesor(
     FROM resumenes_diarios_agendas
     WHERE id_cuenta = ${idCuenta}
       AND fecha BETWEEN ${from}::date AND ${to}::date
+      AND excluida_dashboard IS NOT TRUE
     GROUP BY closer
   `);
   const map: Record<string, { citas: number; asistieron: number }> = {};

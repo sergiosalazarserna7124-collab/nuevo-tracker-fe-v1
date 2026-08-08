@@ -16,6 +16,7 @@ import {
 import { eq, and, gte, lte, sql, isNull, isNotNull, or, gt } from "drizzle-orm";
 import { agendaDedupKey } from "./agenda-dedup-key";
 import { zonedDayRange } from "@/lib/date-range";
+import { sinNoTrackeadosSql } from "@/lib/queries/no-trackeado";
 
 /* ------------------------------------------------------------------ */
 /*  1. getReportAds                                                    */
@@ -98,6 +99,7 @@ export async function getReportAds(
         AND creativo_origen IS NOT NULL
         AND creativo_origen <> ''
         AND tipo_evento NOT IN ('pdte', 'contacto_creado')
+        AND ${sinNoTrackeadosSql(idCuenta)}
       GROUP BY creativo_origen
       ORDER BY leads_count DESC
     `),
@@ -214,6 +216,7 @@ export async function getReportCalls(
         gte(logLlamadas.ts, fromTs),
         lte(logLlamadas.ts, toTs),
         sql`${logLlamadas.tipo_evento} NOT IN ('pdte', 'contacto_creado')`,
+        sinNoTrackeadosSql(idCuenta),
       ),
     );
 
@@ -228,6 +231,7 @@ export async function getReportCalls(
     WHERE id_cuenta = ${idCuenta}
       AND ts BETWEEN ${fromTs} AND ${toTs}
       AND tipo_evento IN ('pdte', 'contacto_creado')
+      AND ${sinNoTrackeadosSql(idCuenta)}
     GROUP BY LOWER(TRIM(COALESCE(closer_mail, nombre_closer, '')))
   `);
 
@@ -254,6 +258,7 @@ export async function getReportCalls(
     WHERE ll.id_cuenta = ${idCuenta}
       AND ll.ts BETWEEN ${fromTs} AND ${toTs}
       AND ll.tipo_evento NOT IN ('pdte', 'contacto_creado')
+      AND ${sinNoTrackeadosSql(idCuenta, "ll.contact_id_ghl")}
       AND rr.fecha_primera_llamada < ${fromTs}
     GROUP BY LOWER(TRIM(COALESCE(ll.closer_mail, ll.nombre_closer, '')))
   `);
@@ -831,6 +836,7 @@ export async function getReportCrmHealth(
       FROM registros_de_llamada rr
       WHERE rr.id_cuenta = ${String(idCuenta)}
         AND rr.fecha_evento BETWEEN ${fromTs} AND ${toTs}
+        AND rr.calificacion_manual IS DISTINCT FROM 'no_trackeado'
         AND LOWER(TRIM(COALESCE(rr.estado, ''))) NOT IN ('perdido', 'perdida')
         AND NOT EXISTS (
           SELECT 1 FROM log_llamadas ll
@@ -854,6 +860,7 @@ export async function getReportCrmHealth(
       FROM registros_de_llamada rr
       WHERE rr.id_cuenta = ${String(idCuenta)}
         AND rr.fecha_evento BETWEEN ${fromTs} AND ${toTs}
+        AND rr.calificacion_manual IS DISTINCT FROM 'no_trackeado'
         AND LOWER(TRIM(COALESCE(rr.estado, ''))) NOT IN ('cerrado', 'vendido', 'ganado', 'done', 'perdido', 'perdida')
         AND (
           EXISTS (
@@ -893,6 +900,7 @@ export async function getReportCrmHealth(
       FROM registros_de_llamada rr
       WHERE rr.id_cuenta = ${String(idCuenta)}
         AND rr.fecha_evento BETWEEN ${fromTs} AND ${toTs}
+        AND rr.calificacion_manual IS DISTINCT FROM 'no_trackeado'
         AND LOWER(TRIM(COALESCE(rr.estado, ''))) NOT IN ('perdido', 'perdida')
         AND NOT EXISTS (
           SELECT 1 FROM log_llamadas ll
@@ -926,6 +934,7 @@ export async function getReportCrmHealth(
       FROM registros_de_llamada rr
       WHERE rr.id_cuenta = ${String(idCuenta)}
         AND rr.fecha_evento BETWEEN ${fromTs} AND ${toTs}
+        AND rr.calificacion_manual IS DISTINCT FROM 'no_trackeado'
         AND LOWER(TRIM(COALESCE(rr.estado, ''))) NOT IN ('cerrado', 'vendido', 'ganado', 'done', 'perdido', 'perdida')
         AND (
           EXISTS (
@@ -1192,6 +1201,7 @@ export async function getReportContactabilidadCanal(
       WHERE id_cuenta = ${idCuenta}
         AND ts BETWEEN ${fromTs} AND ${toTs}
         AND tipo_evento NOT IN ('pdte', 'contacto_creado')
+        AND ${sinNoTrackeadosSql(idCuenta)}
     `),
 
     // Chats: contestó = lead respondió (primer_msg_lead_at NOT NULL)
@@ -1212,6 +1222,7 @@ export async function getReportContactabilidadCanal(
       FROM chats_logs
       WHERE id_cuenta = ${idCuenta}
         AND fecha_y_hora_z BETWEEN ${fromTs} AND ${toTs}
+        AND excluida_dashboard IS NOT TRUE
     `),
   ]);
 

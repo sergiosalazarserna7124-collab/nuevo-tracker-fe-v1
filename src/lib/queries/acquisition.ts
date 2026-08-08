@@ -3,6 +3,7 @@ import { resumenesDiariosAgendas, logLlamadas, chatsLogs, cuentas, normalizeEmbu
 import { zonedDayRange } from "@/lib/date-range";
 import type { EmbudoEtapa } from "@/lib/db/schema";
 import { eq, and, or, gte, lte, isNull, isNotNull, sql } from "drizzle-orm";
+import { sinNoTrackeadosSql } from "@/lib/queries/no-trackeado";
 
 export interface ReMetricaLead {
   campo: string;
@@ -135,6 +136,7 @@ export async function getAcquisition(
         and(
           eq(resumenesDiariosAgendas.id_cuenta, idCuenta),
           fechaFilter,
+          eq(resumenesDiariosAgendas.excluida_dashboard, false),
         ),
       ),
     db
@@ -145,6 +147,7 @@ export async function getAcquisition(
           eq(logLlamadas.id_cuenta, idCuenta),
           gte(logLlamadas.ts, fromDate),
           lte(logLlamadas.ts, toDate),
+          sinNoTrackeadosSql(idCuenta),
         ),
       ),
     db
@@ -155,6 +158,7 @@ export async function getAcquisition(
           eq(chatsLogs.id_cuenta, idCuenta),
           gte(chatsLogs.fecha_y_hora_z, fromDate),
           lte(chatsLogs.fecha_y_hora_z, toDate),
+          sql`${chatsLogs.excluida_dashboard} IS NOT TRUE`,
         ),
       ),
   ]);
