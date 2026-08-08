@@ -201,7 +201,7 @@ export default function LeadsEnEspera({ dateFrom, dateTo }: { dateFrom?: string;
   if (error) return null;
   const seccionTitulo = "Leads sin contacto inicial";
   const helpTitulo = "Leads sin contacto inicial";
-  const helpContenido = `Leads que llevan más de ${data?.umbral_min ?? 60} min SIN NINGÚN tipo de contacto: ni una llamada registrada ni una conversación de chat.\n\nEn cuanto el lead tenga una llamada O un chat, sale de esta lista automáticamente.`;
+  const helpContenido = `Leads que llevan más de ${data?.umbral_min ?? 60} min SIN CONTACTO HUMANO: ni una llamada registrada ni un mensaje de un asesor en chat.\n\nLos mensajes automáticos del bot (bienvenida) NO cuentan como contacto. Cuando el bot delega al asesor (emoji marcador), el lead sigue aquí hasta que el asesor le escriba o lo llame.`;
 
   if (!data || data.total === 0) {
     return (

@@ -110,12 +110,25 @@ async function getLeadsLlamada(
         closerEmails.length > 0
           ? inArray(registrosDeLlamada.closer_mail, closerEmails)
           : undefined,
+        // "Sin contacto" = sin contacto HUMANO. Un mensaje del BOT (bienvenida,
+        // respuestas automáticas) NO cuenta como contacto. El bot marca su
+        // delegación al asesor con un emoji (cuentas.chatbot_transfer_marker →
+        // chats_logs.bot_delegacion_at). El lead se considera contactado por
+        // chat solo si hay un mensaje de agente DESPUÉS de esa delegación (o
+        // cualquier mensaje de agente si la cuenta no usa bot/marker). La
+        // llamada se cubre aparte con fecha_primera_llamada/estado.
         soloSinNingunContacto
           ? sql`NOT EXISTS (
               SELECT 1 FROM chats_logs c
               WHERE c.id_cuenta = ${idCuenta}
               AND c.id_lead = ${registrosDeLlamada.ghl_contact_id}
               AND c.id_lead IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM jsonb_array_elements(c.chat) elem
+                WHERE elem->>'role' = 'agent'
+                  AND elem->>'timestamp' IS NOT NULL
+                  AND (c.bot_delegacion_at IS NULL OR (elem->>'timestamp')::timestamptz > c.bot_delegacion_at)
+              )
             )`
           : undefined,
       ),
