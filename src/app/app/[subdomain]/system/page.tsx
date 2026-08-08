@@ -1097,32 +1097,26 @@ export default function SystemPage() {
                   <div className="grid md:grid-cols-2 gap-2">
                     <input type="text" value={cchNombre} onChange={(e) => setCchNombre(e.target.value)} placeholder="Nombre (ej: Lead nuevo)"
                       className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                    {!ghlEtiquetasOpen && !cchEtManual ? (
+                    {!ghlEtiquetasOpen ? (
                       <div className="flex flex-wrap items-center gap-2">
                         <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
                           {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
                         </button>
                         {cchEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{cchEtiqueta}</span>}
-                        <button type="button" onClick={() => setCchEtManual(true)} className="text-[10px] text-gray-500 hover:text-gray-300">✏️ escribir</button>
+                        
                       </div>
-                    ) : ghlEtiquetas.length > 0 && !cchEtManual ? (
+                    ) : ghlEtiquetas.length > 0 ? (
                       <select
                         value={ghlEtiquetas.includes(cchEtiqueta.trim().toLowerCase()) ? cchEtiqueta.trim().toLowerCase() : ''}
-                        onChange={(e) => { if (e.target.value === '__manual__') { setCchEtManual(true); } else { setCchEtiqueta(e.target.value); } }}
+                        onChange={(e) => setCchEtiqueta(e.target.value)}
                         className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
                         <option value="">Selecciona la etiqueta GHL…</option>
                         {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
-                        <option value="__manual__">✏️ Otra — escribir manualmente</option>
+                        <option value="" disabled>¿Otra? Créala primero en GHL</option>
                       </select>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <input type="text" value={cchEtiqueta} onChange={(e) => setCchEtiqueta(e.target.value)} placeholder="Etiqueta GHL (ej: lead nuevo)"
-                          className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
-                        {ghlEtiquetas.length > 0 && (
-                          <button type="button" onClick={() => setCchEtManual(false)} className="text-[10px] text-gray-500 hover:text-gray-300 whitespace-nowrap">↩ lista</button>
-                        )}
-                      </div>
+                      <p className="text-[11px] text-gray-500">No se encontraron etiquetas. Créala primero en GHL y vuelve a dar “Elegir etiqueta”.</p>
                     )}
                   </div>
                   <textarea value={cchPrompt} onChange={(e) => setCchPrompt(e.target.value)} placeholder="Prompt: cómo analizar los chats de este tipo de contacto..."
@@ -1220,32 +1214,26 @@ export default function SystemPage() {
                   <div className="grid md:grid-cols-2 gap-2">
                     <input type="text" value={ccNombre} onChange={(e) => setCcNombre(e.target.value)} placeholder="Nombre (ej: Lead nuevo)"
                       className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                    {!ghlEtiquetasOpen && !ccEtManual ? (
+                    {!ghlEtiquetasOpen ? (
                       <div className="flex flex-wrap items-center gap-2">
                         <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
                           {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
                         </button>
                         {ccEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{ccEtiqueta}</span>}
-                        <button type="button" onClick={() => setCcEtManual(true)} className="text-[10px] text-gray-500 hover:text-gray-300">✏️ escribir</button>
+                        
                       </div>
-                    ) : ghlEtiquetas.length > 0 && !ccEtManual ? (
+                    ) : ghlEtiquetas.length > 0 ? (
                       <select
                         value={ghlEtiquetas.includes(ccEtiqueta.trim().toLowerCase()) ? ccEtiqueta.trim().toLowerCase() : ''}
-                        onChange={(e) => { if (e.target.value === '__manual__') { setCcEtManual(true); } else { setCcEtiqueta(e.target.value); } }}
+                        onChange={(e) => setCcEtiqueta(e.target.value)}
                         className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
                         <option value="">Selecciona la etiqueta GHL…</option>
                         {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
-                        <option value="__manual__">✏️ Otra — escribir manualmente</option>
+                        <option value="" disabled>¿Otra? Créala primero en GHL</option>
                       </select>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <input type="text" value={ccEtiqueta} onChange={(e) => setCcEtiqueta(e.target.value)} placeholder="Etiqueta GHL (ej: lead nuevo)"
-                          className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
-                        {ghlEtiquetas.length > 0 && (
-                          <button type="button" onClick={() => setCcEtManual(false)} className="text-[10px] text-gray-500 hover:text-gray-300 whitespace-nowrap">↩ lista</button>
-                        )}
-                      </div>
+                      <p className="text-[11px] text-gray-500">No se encontraron etiquetas. Créala primero en GHL y vuelve a dar “Elegir etiqueta”.</p>
                     )}
                   </div>
                   <textarea value={ccPrompt} onChange={(e) => setCcPrompt(e.target.value)} placeholder="Prompt: cómo evaluar las citas de este tipo de contacto..."
@@ -1443,33 +1431,26 @@ export default function SystemPage() {
                         <label className="block text-[11px] font-medium text-accent-purple">Etiqueta de GHL (ancla de la categoría)</label>
                         <HelpTooltip titulo="Etiqueta" contenido="Si el CONTACTO tiene esta etiqueta en GHL (ej. lead nuevo, lead perfilado, lead agendado), sus llamadas se evalúan con el prompt de esta categoría. Tiene prioridad sobre cualquier otra selección." />
                       </div>
-                      {!ghlEtiquetasOpen && !catEtManual ? (
+                      {!ghlEtiquetasOpen ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
                             {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
                           </button>
                           {catEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{catEtiqueta}</span>}
-                          <button type="button" onClick={() => setCatEtManual(true)} className="text-[10px] text-gray-500 hover:text-gray-300">✏️ escribir</button>
+                          
                         </div>
-                      ) : ghlEtiquetas.length > 0 && !catEtManual ? (
+                      ) : ghlEtiquetas.length > 0 ? (
                         <select
                           value={ghlEtiquetas.includes(catEtiqueta.trim().toLowerCase()) ? catEtiqueta.trim().toLowerCase() : ''}
-                          onChange={(e) => { if (e.target.value === '__manual__') { setCatEtManual(true); } else { setCatEtiqueta(e.target.value); } }}
+                          onChange={(e) => setCatEtiqueta(e.target.value)}
                           className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
                           <option value="">(sin etiqueta)</option>
                           {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
-                          <option value="__manual__">✏️ Otra — escribir manualmente</option>
+                          <option value="" disabled>¿Otra? Créala primero en GHL</option>
                         </select>
                       ) : (
-                        <div className="flex items-center gap-2">
-                          <input type="text" value={catEtiqueta} onChange={(e) => setCatEtiqueta(e.target.value)}
-                            placeholder="Ej: lead nuevo"
-                            className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
-                          {ghlEtiquetas.length > 0 && (
-                            <button type="button" onClick={() => setCatEtManual(false)} className="text-[10px] text-gray-500 hover:text-gray-300 whitespace-nowrap">↩ lista</button>
-                          )}
-                        </div>
+                        <p className="text-[11px] text-gray-500">No se encontraron etiquetas. Créala primero en GHL y vuelve a dar “Elegir etiqueta”.</p>
                       )}
                     </div>
                     <div>
