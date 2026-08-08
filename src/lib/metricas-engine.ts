@@ -121,8 +121,11 @@ export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   { id: "default-monto-apartado", nombre: "Monto apartado", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "moneda", color: "cyan", formula: { tipo: "directo", fuente: "montoApartado" }, descripcion: "Suma del campo 'Monto de apartado' de las oportunidades apartadas" },
   { id: "default-ventas", nombre: "Ventas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "numero", color: "green", formula: { tipo: "directo", fuente: "ventas" }, descripcion: "Leads con etiqueta 'compro' (cuenta por oportunidad)" },
   { id: "default-monto-vendido", nombre: "Monto vendido", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "moneda", color: "green", formula: { tipo: "directo", fuente: "montoVendido" }, descripcion: "Suma del value de las oportunidades con etiqueta 'compro'" },
-  { id: "default-revenue", nombre: "Ingresos", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "moneda", color: "green", formula: { tipo: "directo", fuente: "revenue" } },
-  { id: "default-cash", nombre: "Efectivo cobrado", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 12, formato: "moneda", color: "green", formula: { tipo: "directo", fuente: "cashCollected" } },
+  // "Ingresos" (revenue) y "Efectivo cobrado" (cashCollected) se ELIMINARON de
+  // los defaults a pedido de Sergio (2026-08-08): el dinero ahora sale de
+  // Apartados/Ventas por etiqueta. Las fuentes siguen disponibles para
+  // configs manuales; no re-agregar aquí (el merge de missingDefaults las
+  // reviviría en cuentas con config guardada).
   { id: "default-ticket", nombre: "Ticket promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 13, formato: "moneda", color: "blue", formula: { tipo: "directo", fuente: "avgTicket" }, descripcion: "Ingresos ÷ Citas efectivas" },
   // --- Bloque 6: Calidad de leads ---
   { id: "default-descartados", nombre: "Leads descartados", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 14, formato: "numero", color: "red", formula: { tipo: "directo", fuente: "leadsDescartados" }, descripcion: "Leads marcados como descartados (etiqueta descartar-lead o descarte manual). No cuentan en las métricas globales, pero quedan visibles aquí." },
