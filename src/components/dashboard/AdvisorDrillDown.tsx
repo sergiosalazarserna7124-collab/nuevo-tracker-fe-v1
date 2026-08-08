@@ -805,7 +805,10 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
     }
     for (const c of data.chats.filter(matchChat)) {
       const ultimo = c.messages[c.messages.length - 1];
-      out.push({ canal: "chat", date: c.fechaUltimoMensaje, label: c.estado ?? (c.respondido ? "Respondido" : "Sin respuesta"), texto: ultimo ? `${ultimo.role === "lead" ? "Lead" : "Asesor"}: ${ultimo.message}` : `${c.messages.length} mensajes`, chat: c });
+      const est = chatEstado(c);
+      const resumen = c.iaResumen?.trim()
+        || (ultimo ? `${ultimo.role === "lead" ? "Lead" : "Asesor"}: ${ultimo.message}` : `${c.messages.length} mensajes`);
+      out.push({ canal: "chat", date: c.fechaUltimoMensaje, label: est.label, texto: resumen, chat: c });
     }
     for (const v of data.videollamadas.filter((v) => matchLead(v.leadEmail, v.leadName, v.ghlContactId))) {
       out.push({ canal: "cita", date: v.fechaReunion, label: categoriaLabel(v.categoria), texto: v.resumenIa ?? "Sin resumen IA", categoria: v.categoria, cita: v });
@@ -892,6 +895,7 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
         <div className="space-y-1.5 flex-1 overflow-y-auto">
           {filtradas.map((i, idx) => {
             const M = CANAL_META[i.canal];
+            const chatEst = i.chat ? chatEstado(i.chat) : null;
             return (
               <button
                 key={idx}
@@ -899,13 +903,24 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
                 onClick={() => setDetalle(i)}
                 className="w-full text-left rounded-lg bg-surface-700 hover:bg-surface-600 px-3 py-2 transition-colors group"
               >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className={`inline-flex items-center justify-center w-5 h-5 rounded ${M.bg}`}><M.icon className={`w-3 h-3 ${M.color}`} /></span>
                   <span className={`text-[11px] font-medium ${M.color}`}>{M.nombre}</span>
-                  <span className="text-[10px] text-gray-500">· {i.label}</span>
+                  {chatEst ? (
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                      chatEst.waiting === "asesor" ? "bg-accent-amber/20 text-accent-amber"
+                        : chatEst.waiting === "lead" ? "bg-accent-cyan/20 text-accent-cyan"
+                        : "bg-surface-600 text-gray-300"
+                    }`}>{chatEst.waiting ? "⏳ " : ""}{i.label}</span>
+                  ) : (
+                    <span className="text-[10px] text-gray-500">· {i.label}</span>
+                  )}
                   <span className="text-[10px] text-gray-500 ml-auto">{formatDate(i.date)}</span>
                   <ChevronRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 shrink-0" />
                 </div>
+                {i.canal === "chat" && (
+                  <span className="text-[9px] uppercase tracking-wide text-gray-500">En qué quedó</span>
+                )}
                 <p className="text-xs text-gray-300 whitespace-pre-wrap break-words line-clamp-4">{i.texto}</p>
               </button>
             );
