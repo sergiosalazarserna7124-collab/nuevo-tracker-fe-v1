@@ -617,6 +617,31 @@ export async function getDashboard(
   `);
   kpis.oportunidadesCreadas = Number((oppRes.rows[0] as { n?: number })?.n ?? 0);
 
+  // ── Apartados y Ventas (etiquetas GHL "apartado" / "compro") ───────────────
+  // El backend marca la oportunidad del contacto: apartado + monto_apartado
+  // (campo custom "Monto de apartado") y venta + monto_venta (value de la
+  // oportunidad). Se cuenta por fecha del evento (fecha_apartado/fecha_venta).
+  const finRes = await db.execute(sql`
+    SELECT
+      COUNT(*) FILTER (WHERE o.apartado AND o.fecha_apartado BETWEEN ${fromDate} AND ${toDate})::int AS apartados,
+      COALESCE(SUM(o.monto_apartado) FILTER (WHERE o.apartado AND o.fecha_apartado BETWEEN ${fromDate} AND ${toDate}), 0) AS monto_apartado,
+      COUNT(*) FILTER (WHERE o.venta AND o.fecha_venta BETWEEN ${fromDate} AND ${toDate})::int AS ventas,
+      COALESCE(SUM(COALESCE(o.monto_venta, o.monetary_value)) FILTER (WHERE o.venta AND o.fecha_venta BETWEEN ${fromDate} AND ${toDate}), 0) AS monto_vendido
+    FROM oportunidades o
+    WHERE o.id_cuenta = ${idCuenta}
+      AND COALESCE(o.status, '') <> 'deleted'
+      AND NOT EXISTS (
+        SELECT 1 FROM registros_de_llamada r
+        WHERE r.id_cuenta = ${String(idCuenta)} AND r.ghl_contact_id = o.ghl_contact_id
+          AND r.calificacion_manual = 'no_trackeado'
+      )
+  `);
+  const finRow = finRes.rows[0] as { apartados?: number; monto_apartado?: string | number; ventas?: number; monto_vendido?: string | number } | undefined;
+  kpis.apartados = Number(finRow?.apartados ?? 0);
+  kpis.montoApartado = Number(finRow?.monto_apartado ?? 0);
+  kpis.ventas = Number(finRow?.ventas ?? 0);
+  kpis.montoVendido = Number(finRow?.monto_vendido ?? 0);
+
   // Speed to lead (ambos) desde registros_de_llamada:
   //  - GENERAL  = minutos desde fecha_evento (creación) hasta fecha_primera_llamada
   //               (INICIO de la 1ra llamada, NO el fin). Sin horario ni zona.

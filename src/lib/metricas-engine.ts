@@ -20,6 +20,10 @@ export const KPI_DEFAULT_KEYS = [
   "revenue",
   "cashCollected",
   "avgTicket",
+  "apartados",
+  "montoApartado",
+  "ventas",
+  "montoVendido",
   "speedToLeadAvg",
   "speedToLeadAsesor",
   "avgAttempts",
@@ -59,6 +63,10 @@ export const KPI_DEFAULT_LABELS: Record<string, string> = {
   revenue: "Ingresos",
   cashCollected: "Efectivo cobrado",
   avgTicket: "Ticket promedio",
+  apartados: "Apartados",
+  montoApartado: "Monto apartado",
+  ventas: "Ventas",
+  montoVendido: "Monto vendido",
   speedToLeadAvg: "Tiempo al lead (min)",
   speedToLeadAsesor: "Speed to lead asesor (min)",
   avgAttempts: "Intentos promedio",
@@ -103,6 +111,13 @@ export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   // --- Bloque 4: Cierre ---
   { id: "default-tasa-cierre", nombre: "Tasa de cierre", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 10, formato: "porcentaje", color: "green", formula: { tipo: "directo", fuente: "tasaCierre" }, descripcion: "Cerradas ÷ Asistidas" },
   // --- Bloque 5: Dinero ---
+  // Apartados/Ventas: se alimentan de las etiquetas GHL "apartado" y "compro"
+  // sobre el contacto — el backend marca la oportunidad y guarda los montos
+  // (campo custom "Monto de apartado" / value de la oportunidad).
+  { id: "default-apartados", nombre: "Apartados", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "numero", color: "cyan", formula: { tipo: "directo", fuente: "apartados" }, descripcion: "Leads con etiqueta 'apartado' (cuenta por oportunidad)" },
+  { id: "default-monto-apartado", nombre: "Monto apartado", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "moneda", color: "cyan", formula: { tipo: "directo", fuente: "montoApartado" }, descripcion: "Suma del campo 'Monto de apartado' de las oportunidades apartadas" },
+  { id: "default-ventas", nombre: "Ventas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "numero", color: "green", formula: { tipo: "directo", fuente: "ventas" }, descripcion: "Leads con etiqueta 'compro' (cuenta por oportunidad)" },
+  { id: "default-monto-vendido", nombre: "Monto vendido", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "moneda", color: "green", formula: { tipo: "directo", fuente: "montoVendido" }, descripcion: "Suma del value de las oportunidades con etiqueta 'compro'" },
   { id: "default-revenue", nombre: "Ingresos", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 11, formato: "moneda", color: "green", formula: { tipo: "directo", fuente: "revenue" } },
   { id: "default-cash", nombre: "Efectivo cobrado", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 12, formato: "moneda", color: "green", formula: { tipo: "directo", fuente: "cashCollected" } },
   { id: "default-ticket", nombre: "Ticket promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 13, formato: "moneda", color: "blue", formula: { tipo: "directo", fuente: "avgTicket" }, descripcion: "Ingresos ÷ Citas efectivas" },
