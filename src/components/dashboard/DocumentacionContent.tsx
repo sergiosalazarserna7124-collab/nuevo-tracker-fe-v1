@@ -120,6 +120,14 @@ export default function DocumentacionContent() {
               </TablaEtiquetas>
             </div>
             <div>
+              <p className="mb-1.5 font-medium text-white flex items-center gap-1.5">💰 Etiquetas financieras (las pone tu equipo en el contacto)</p>
+              <p className="text-[11px] text-gray-500 mb-1.5">Importante: una venta o un apartado <strong className="text-gray-300">solo cuentan si además el valor está completo</strong> en la oportunidad de GHL. Si está la etiqueta pero el campo de valor está vacío, no se cuenta (ni en Ventas, Tasa de cierre ni Dinero entrante).</p>
+              <TablaEtiquetas>
+                <Fila etiqueta="vendida" cuando="Cuenta como VENTA solo si además el campo de valor de la oportunidad (monetary value) está completo (> 0). Su monto suma al Dinero entrante. Se acepta 'compro' como alias." />
+                <Fila etiqueta="apartado" cuando="Cuenta como APARTADO solo si además el campo custom 'Monto de apartado' de la oportunidad está completo (> 0). Su monto suma al Dinero entrante." />
+              </TablaEtiquetas>
+            </div>
+            <div>
               <p className="mb-1.5 font-medium text-white flex items-center gap-1.5"><Bot className="w-3.5 h-3.5 text-accent-green" /> Por el agente de voz IA</p>
               <TablaEtiquetas>
                 <Fila etiqueta="interesadocallai" cuando="El agente de voz detectó interés" />
