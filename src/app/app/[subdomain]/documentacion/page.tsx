@@ -111,8 +111,8 @@ export default function DocumentacionPage() {
             <div>
               <p className="mb-1.5 font-medium text-white flex items-center gap-1.5"><Video className="w-3.5 h-3.5 text-accent-amber" /> Por el resultado de la videollamada (IA + Fathom)</p>
               <TablaEtiquetas>
-                <Fila etiqueta="videollamada_efectiva_lm" cuando="La reunión ocurrió con interacción real (hay grabación/transcripción)" />
-                <Fila etiqueta="cerrada_lm" cuando="La IA detectó cierre de venta CON pago: solo se pone si hubo cash collected o facturación mayor a 0" />
+                <Fila etiqueta="cita_efectiva_lm" cuando="La reunión ocurrió con interacción real (hay grabación/transcripción)" />
+                <Fila etiqueta="cita_cerrada_lm" cuando="La IA detectó cierre de venta CON pago: solo se pone si hubo cash collected o facturación mayor a 0" />
               </TablaEtiquetas>
             </div>
             <div>
@@ -210,7 +210,7 @@ export default function DocumentacionPage() {
             <TablaEtiquetas>
               <Fila etiqueta="📞 Llamada GHL — Análisis IA" cuando="Análisis simple de la llamada generado por la IA: temas que se tocaron, puntos importantes y resultado final" />
               <Fila etiqueta="Llamada no contestada" cuando="Nota simple cuando la llamada no fue contestada" />
-              <Fila etiqueta="🎥 Videollamada — Análisis IA" cuando="Análisis según el prompt de videollamadas: resultado, facturación detectada, objeciones, etiquetas y el 🔗 link a la grabación de Fathom" />
+              <Fila etiqueta="🎥 Videollamada — Resumen" cuando="Resumen simple de la reunión: temas tratados, puntos importantes y resultado final, con el 🔗 link a la grabación de Fathom" />
               <Fila etiqueta="📞 Agente de voz — LeadMaster" cuando="Estado final de la llamada del agente IA, resumen y reagendamiento" />
             </TablaEtiquetas>
             <p className="text-xs text-gray-500">

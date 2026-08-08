@@ -553,22 +553,23 @@ export default function ConfiguracionPage() {
         {/* ── Usuarios ── */}
         {puedeUsuarios && (
           <section className="rounded-xl border border-surface-500 bg-surface-800/80 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-accent-cyan" />
                 <h2 className="text-sm font-semibold text-white">Usuarios</h2>
                 <span className="px-2 py-0.5 rounded-full bg-accent-cyan/20 text-accent-cyan text-xs font-medium">{users.length}</span>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <a href="/api/data/usuarios/template" download className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-700 border border-surface-500 text-gray-300 text-xs font-medium hover:bg-surface-600 transition-colors"><Download className="w-3.5 h-3.5" /> Plantilla</a>
-                <button type="button" onClick={() => { setShowBulkModal(true); setBulkResult(null); setBulkFile(null); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-700 border border-surface-500 text-gray-300 text-xs font-medium hover:bg-surface-600 transition-colors"><Upload className="w-3.5 h-3.5" /> Carga masiva</button>
-                <button type="button" onClick={openCreateUser} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-cyan text-black text-sm font-semibold hover:bg-accent-cyan/90 transition-colors"><UserPlus className="w-4 h-4" /> Añadir usuario</button>
-              </div>
+            </div>
+            <div className="mb-4 rounded-lg border border-accent-cyan/30 bg-accent-cyan/10 px-4 py-3 text-sm text-gray-300">
+              <span className="font-semibold text-white">AutoKPI se sincroniza automáticamente con los usuarios de tu GHL.</span>{" "}
+              Aquí no se puede agregar, editar ni eliminar usuarios: agrega o quita usuarios en
+              GoHighLevel y aparecerán solos. Los admin de GHL tienen acceso total; los demás solo
+              ven sus propios datos.
             </div>
             {loading ? (
               <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
             ) : users.length === 0 ? (
-              <p className="text-sm text-gray-500 py-6 text-center rounded-lg bg-surface-700/50 border border-surface-500 border-dashed">No hay usuarios. Haz clic en &quot;Añadir usuario&quot; para crear el primero.</p>
+              <p className="text-sm text-gray-500 py-6 text-center rounded-lg bg-surface-700/50 border border-surface-500 border-dashed">Aún no se han sincronizado usuarios desde GHL.</p>
             ) : (
               <ul className="space-y-2">
                 {users.map((u) => (
@@ -580,14 +581,11 @@ export default function ConfiguracionPage() {
                         {u.tipo_usuario === "enfoque" && <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-medium uppercase">Enfoque</span>}
                       </div>
                       <span className="text-gray-500 text-xs block">{u.email}</span>
-                      {u.fathom?.trim() && <span className={`text-[10px] block mt-0.5 ${u.id_webhook_fathom ? "text-accent-green" : "text-amber-400"}`}>Fathom: {u.id_webhook_fathom ? "webhook registrado" : "API key sin webhook (revisa o edita)"}</span>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <select value={u.rol} onChange={(e) => updateRoleUser(u.id, e.target.value)} className="rounded bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white">
-                        {rolesParaSelect.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-                      </select>
-                      <button type="button" onClick={() => openEditUser(u)} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan"><Pencil className="w-4 h-4" /></button>
-                      <button type="button" onClick={() => handleDeleteUser(u.id)} className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400"><X className="w-4 h-4" /></button>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${u.rol === "superadmin" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-surface-600 text-gray-300 border-surface-500"}`}>
+                        {u.rol === "superadmin" ? "Admin (todo)" : "Usuario (sus datos)"}
+                      </span>
                     </div>
                   </li>
                 ))}
