@@ -368,6 +368,11 @@ export default function SystemPage() {
   const [chatCatsSaving, setChatCatsSaving] = useState(false);
   const [chatCatLabel, setChatCatLabel] = useState('');
   const [chatCatDesc, setChatCatDesc] = useState('');
+  // Etiquetas de GHL para los selectores de categorías (evita typos)
+  const [ghlEtiquetas, setGhlEtiquetas] = useState<string[]>([]);
+  const [ghlEtiquetasLoaded, setGhlEtiquetasLoaded] = useState(false);
+  const [catEtManual, setCatEtManual] = useState(false);
+  const [ccEtManual, setCcEtManual] = useState(false);
 
   // Coach de ventas state
   interface SeccionGuion {
@@ -641,6 +646,22 @@ export default function SystemPage() {
       })();
     }
   }, [currentStep, evalSeccion, chatCatsLoaded]);
+
+  // Cargar etiquetas de GHL al entrar al paso 1 (para los selectores)
+  useEffect(() => {
+    if (currentStep === 1 && !ghlEtiquetasLoaded) {
+      (async () => {
+        try {
+          const res = await fetch('/api/data/ghl-etiquetas');
+          if (res.ok) {
+            const d = await res.json();
+            if (Array.isArray(d.etiquetas)) setGhlEtiquetas(d.etiquetas);
+          }
+        } catch { /* noop */ }
+        setGhlEtiquetasLoaded(true);
+      })();
+    }
+  }, [currentStep, ghlEtiquetasLoaded]);
 
   const saveChatCats = async (next: { slug: string; label: string; descripcion: string }[]) => {
     setChatCats(next);
@@ -1157,8 +1178,24 @@ export default function SystemPage() {
                   <div className="grid md:grid-cols-2 gap-2">
                     <input type="text" value={ccNombre} onChange={(e) => setCcNombre(e.target.value)} placeholder="Nombre (ej: Lead nuevo)"
                       className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                    <input type="text" value={ccEtiqueta} onChange={(e) => setCcEtiqueta(e.target.value)} placeholder="Etiqueta GHL (ej: lead nuevo)"
-                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
+                    {ghlEtiquetas.length > 0 && !ccEtManual ? (
+                      <select
+                        value={ghlEtiquetas.includes(ccEtiqueta.trim().toLowerCase()) ? ccEtiqueta.trim().toLowerCase() : ''}
+                        onChange={(e) => { if (e.target.value === '__manual__') { setCcEtManual(true); } else { setCcEtiqueta(e.target.value); } }}
+                        className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
+                        <option value="">Selecciona la etiqueta GHL…</option>
+                        {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
+                        <option value="__manual__">✏️ Otra — escribir manualmente</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input type="text" value={ccEtiqueta} onChange={(e) => setCcEtiqueta(e.target.value)} placeholder="Etiqueta GHL (ej: lead nuevo)"
+                          className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
+                        {ghlEtiquetas.length > 0 && (
+                          <button type="button" onClick={() => setCcEtManual(false)} className="text-[10px] text-gray-500 hover:text-gray-300 whitespace-nowrap">↩ lista</button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <textarea value={ccPrompt} onChange={(e) => setCcPrompt(e.target.value)} placeholder="Prompt: cómo evaluar las citas de este tipo de contacto..."
                     className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[70px] focus:ring-2 focus:ring-accent-purple/40" />
@@ -1397,9 +1434,25 @@ export default function SystemPage() {
                         <label className="block text-[11px] font-medium text-accent-purple">Etiqueta de GHL (ancla de la categoría)</label>
                         <HelpTooltip titulo="Etiqueta" contenido="Si el CONTACTO tiene esta etiqueta en GHL (ej. lead nuevo, lead perfilado, lead agendado), sus llamadas se evalúan con el prompt de esta categoría. Tiene prioridad sobre cualquier otra selección." />
                       </div>
-                      <input type="text" value={catEtiqueta} onChange={(e) => setCatEtiqueta(e.target.value)}
-                        placeholder="Ej: lead nuevo"
-                        className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
+                      {ghlEtiquetas.length > 0 && !catEtManual ? (
+                        <select
+                          value={ghlEtiquetas.includes(catEtiqueta.trim().toLowerCase()) ? catEtiqueta.trim().toLowerCase() : ''}
+                          onChange={(e) => { if (e.target.value === '__manual__') { setCatEtManual(true); } else { setCatEtiqueta(e.target.value); } }}
+                          className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
+                          <option value="">(sin etiqueta)</option>
+                          {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
+                          <option value="__manual__">✏️ Otra — escribir manualmente</option>
+                        </select>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <input type="text" value={catEtiqueta} onChange={(e) => setCatEtiqueta(e.target.value)}
+                            placeholder="Ej: lead nuevo"
+                            className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono" />
+                          {ghlEtiquetas.length > 0 && (
+                            <button type="button" onClick={() => setCatEtManual(false)} className="text-[10px] text-gray-500 hover:text-gray-300 whitespace-nowrap">↩ lista</button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="flex items-center gap-1 mb-1">
