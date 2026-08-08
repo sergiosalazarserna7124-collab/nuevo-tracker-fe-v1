@@ -11,7 +11,6 @@ import { db } from "@/lib/db";
 import { cuentas, usuariosDashboard, type InfoComercial } from "@/lib/db/schema";
 import { createUsuario } from "@/lib/queries/usuarios";
 import { eq, sql } from "drizzle-orm";
-import { hash } from "bcryptjs";
 
 export async function verifySuperAccess(formData: FormData) {
   const email = (formData.get("email") as string)?.trim().toLowerCase();
@@ -102,9 +101,9 @@ export async function crearCuenta(input: CrearCuentaInput) {
       })
       .returning({ id_cuenta: cuentas.id_cuenta, subdominio: cuentas.subdominio });
 
-    // Primer usuario admin del cliente. Sin password → genera provisional,
-    // marca must_change_password=true y envía el correo (si EMAIL_ENABLED=true).
-    const result = await createUsuario(cuenta.id_cuenta, {
+    // Primer usuario admin del cliente. Login sin contraseña: entra con
+    // Google o con el código que se le envía al correo.
+    await createUsuario(cuenta.id_cuenta, {
       nombre: input.admin_nombre?.trim() || email,
       email,
       rol: "superadmin",
@@ -120,7 +119,6 @@ export async function crearCuenta(input: CrearCuentaInput) {
       subdominio: cuenta.subdominio,
       loginUrl,
       email,
-      provisionalPassword: result.provisionalPassword,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -178,14 +176,12 @@ export async function actualizarUsuarioPrincipal(input: {
   id_evento: number;
   nombre?: string;
   email?: string;
-  password?: string;
 }) {
   if (!(await requireSuper())) return { error: "Tu sesión de admin expiró." };
   try {
     const set: Record<string, unknown> = {};
     if (input.nombre !== undefined) set.nombre = input.nombre;
     if (input.email) set.email = input.email.trim().toLowerCase();
-    if (input.password && input.password.trim()) set.pass = await hash(input.password.trim(), 10);
     if (Object.keys(set).length === 0) return { ok: true as const };
     await db
       .update(usuariosDashboard)

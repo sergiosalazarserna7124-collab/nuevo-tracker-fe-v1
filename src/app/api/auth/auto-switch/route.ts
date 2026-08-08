@@ -111,6 +111,7 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           eq(usuariosDashboard.email, email),
+          eq(usuariosDashboard.activo, true),
           or(
             eq(cuentas.subdominio, subdominioSlug),
             eq(cuentas.subdominio, subdominioFull),

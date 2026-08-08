@@ -1,11 +1,7 @@
 import { db } from "@/lib/db";
-import { usuariosDashboard, cuentas } from "@/lib/db/schema";
+import { usuariosDashboard } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { hash } from "bcryptjs";
 import { registrarWebhookFathom } from "@/lib/fathom-webhook";
-import { randomBytes } from "crypto";
-import { sendProvisionalPasswordEmail } from "@/lib/email";
-import { normalizeSubdominio } from "@/lib/subdomain";
 
 export type TipoUsuario = "analista" | "enfoque";
 
@@ -18,10 +14,8 @@ export interface UsuarioRow {
   fathom: string | null;
   id_webhook_fathom: string | null;
   tipo_usuario: TipoUsuario;
-}
-
-function generateProvisionalPassword(): string {
-  return randomBytes(12).toString("base64url");
+  origen: string;
+  activo: boolean;
 }
 
 export async function listUsuarios(idCuenta: number): Promise<UsuarioRow[]> {
@@ -35,6 +29,8 @@ export async function listUsuarios(idCuenta: number): Promise<UsuarioRow[]> {
       fathom: usuariosDashboard.fathom,
       id_webhook_fathom: usuariosDashboard.id_webhook_fathom,
       tipo_usuario: usuariosDashboard.tipo_usuario,
+      origen: usuariosDashboard.origen,
+      activo: usuariosDashboard.activo,
     })
     .from(usuariosDashboard)
     .where(eq(usuariosDashboard.id_cuenta, idCuenta));
@@ -46,32 +42,30 @@ export interface CreateUsuarioResult {
   user: UsuarioRow;
   /** Si hubo API key Fathom pero el registro del webhook falló */
   fathomWarning: string | null;
-  /** Contraseña provisional generada (solo cuando no se envió password). Mostrar una sola vez. */
-  provisionalPassword: string | null;
 }
 
+// Login sin contraseña: los usuarios entran con Google o código por email,
+// así que crear un usuario es solo insertar la fila (sin pass ni provisional).
 export async function createUsuario(
   idCuenta: number,
-  data: { nombre: string; email: string; password?: string; rol: string; permisos?: Record<string, boolean>; fathom?: string; tipo_usuario?: TipoUsuario },
+  data: { nombre: string; email: string; rol: string; permisos?: Record<string, boolean>; fathom?: string; tipo_usuario?: TipoUsuario },
 ): Promise<CreateUsuarioResult> {
   const fathomKey = data.fathom?.trim() || null;
   const tipoUsuario = data.tipo_usuario === "enfoque" ? "enfoque" : "analista";
-  const isProvisional = !data.password;
-  const plaintext = data.password || generateProvisionalPassword();
-  const hashed = await hash(plaintext, 10);
   const [row] = await db
     .insert(usuariosDashboard)
     .values({
       id_cuenta: idCuenta,
       nombre: data.nombre,
       email: data.email.trim().toLowerCase(),
-      pass: hashed,
+      pass: null,
       rol: data.rol as "superadmin" | "usuario",
       permisos: data.permisos ?? null,
       fathom: fathomKey,
       id_webhook_fathom: null,
       tipo_usuario: tipoUsuario,
-      must_change_password: isProvisional,
+      origen: "manual",
+      activo: true,
     })
     .returning({
       id: usuariosDashboard.id_evento,
@@ -82,9 +76,9 @@ export async function createUsuario(
       fathom: usuariosDashboard.fathom,
       id_webhook_fathom: usuariosDashboard.id_webhook_fathom,
       tipo_usuario: usuariosDashboard.tipo_usuario,
+      origen: usuariosDashboard.origen,
+      activo: usuariosDashboard.activo,
     });
-
-  const provisionalPassword = isProvisional ? plaintext : null;
 
   let fathomWarning: string | null = null;
   if (fathomKey) {
@@ -96,29 +90,21 @@ export async function createUsuario(
         .where(
           and(eq(usuariosDashboard.id_evento, row.id), eq(usuariosDashboard.id_cuenta, idCuenta)),
         );
-      if (provisionalPassword) {
-        void sendProvisionalEmail(idCuenta, data.email, data.nombre, provisionalPassword);
-      }
       return {
         user: { ...row, id_webhook_fathom: reg.webhookId } as UsuarioRow,
         fathomWarning: null,
-        provisionalPassword,
       };
     }
     fathomWarning = reg.error;
   }
 
-  if (provisionalPassword) {
-    void sendProvisionalEmail(idCuenta, data.email, data.nombre, provisionalPassword);
-  }
-
-  return { user: row as UsuarioRow, fathomWarning, provisionalPassword };
+  return { user: row as UsuarioRow, fathomWarning };
 }
 
 export async function updateUsuario(
   idCuenta: number,
   idEvento: number,
-  data: { nombre?: string; rol?: string; permisos?: Record<string, boolean>; fathom?: string; password?: string; tipo_usuario?: TipoUsuario },
+  data: { nombre?: string; rol?: string; permisos?: Record<string, boolean>; fathom?: string; tipo_usuario?: TipoUsuario; activo?: boolean },
 ): Promise<{ fathomWarning: string | null }> {
   let fathomWarning: string | null = null;
 
@@ -137,7 +123,7 @@ export async function updateUsuario(
   if (data.nombre !== undefined) set.nombre = data.nombre;
   if (data.rol !== undefined) set.rol = data.rol;
   if (data.permisos !== undefined) set.permisos = data.permisos;
-  if (data.password) set.pass = await hash(data.password, 10);
+  if (data.activo !== undefined) set.activo = data.activo;
   if (data.tipo_usuario !== undefined) set.tipo_usuario = data.tipo_usuario === "enfoque" ? "enfoque" : "analista";
 
   if (data.fathom !== undefined) {
@@ -167,26 +153,6 @@ export async function updateUsuario(
     .where(and(eq(usuariosDashboard.id_evento, idEvento), eq(usuariosDashboard.id_cuenta, idCuenta)));
 
   return { fathomWarning };
-}
-
-async function sendProvisionalEmail(
-  idCuenta: number,
-  email: string,
-  nombre: string,
-  provisional: string,
-): Promise<void> {
-  try {
-    const [cuenta] = await db
-      .select({ subdominio: cuentas.subdominio })
-      .from(cuentas)
-      .where(eq(cuentas.id_cuenta, idCuenta))
-      .limit(1);
-    const slug = normalizeSubdominio(cuenta?.subdominio) ?? "app";
-    const loginUrl = `https://${slug}.leadmaster.com.co`;
-    await sendProvisionalPasswordEmail({ to: email, nombre, provisional, loginUrl });
-  } catch (err) {
-    console.error("[usuarios] Error enviando email provisional:", err);
-  }
 }
 
 export async function deleteUsuario(idCuenta: number, idEvento: number): Promise<void> {

@@ -1,14 +1,17 @@
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import { compare } from "bcryptjs";
 import { db } from "@/lib/db";
-import { usuariosDashboard, cuentas } from "@/lib/db/schema";
+import { usuariosDashboard, cuentas, loginCodes } from "@/lib/db/schema";
 import type { RolConfig } from "@/lib/db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, isNull, gt, desc, sql } from "drizzle-orm";
 import { PERMISOS_DISPONIBLES } from "@/lib/permisos";
 import { normalizeSubdominio } from "@/lib/subdomain";
 
 const ALL_PERMISOS = PERMISOS_DISPONIBLES.map((p) => p.id);
+
+const MAX_CODE_ATTEMPTS = 5;
 
 const DEFAULT_ROLES_CONFIG: RolConfig[] = [
   { id: "superadmin", nombre: "Administrador General", permisos: ["ver_todo", "editar_registros", "configurar_sistema", "gestionar_usuarios", "gestionar_roles"] },
@@ -31,151 +34,161 @@ function resolvePermisos(rol: string, rolesConfig: RolConfig[] | null): string[]
   return [];
 }
 
+interface UsuarioConCuenta {
+  id_evento: number;
+  id_cuenta: number | null;
+  nombre: string | null;
+  email: string;
+  rol: string;
+  permisos: Record<string, boolean> | null;
+  subdominio: string;
+  roles_config: RolConfig[] | null;
+  tipo_usuario: string;
+}
+
+/**
+ * Filas activas de usuarios_dashboard para un email, con su cuenta.
+ * Si se pasa subdominio, se limita a esa cuenta (acepta slug o dominio completo).
+ */
+async function findUsuariosActivos(
+  email: string,
+  subdominio?: string | null,
+): Promise<UsuarioConCuenta[]> {
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
+  const slug = subdominio ? (normalizeSubdominio(subdominio) ?? subdominio) : null;
+  const conditions = [
+    eq(usuariosDashboard.email, email),
+    eq(usuariosDashboard.activo, true),
+  ];
+  if (slug) {
+    conditions.push(
+      or(eq(cuentas.subdominio, slug), eq(cuentas.subdominio, `${slug}.${rootDomain}`))!,
+    );
+  }
+  return db
+    .select({
+      id_evento: usuariosDashboard.id_evento,
+      id_cuenta: usuariosDashboard.id_cuenta,
+      nombre: usuariosDashboard.nombre,
+      email: usuariosDashboard.email,
+      rol: usuariosDashboard.rol,
+      permisos: usuariosDashboard.permisos,
+      subdominio: cuentas.subdominio,
+      roles_config: cuentas.roles_config,
+      tipo_usuario: usuariosDashboard.tipo_usuario,
+    })
+    .from(usuariosDashboard)
+    .innerJoin(cuentas, eq(usuariosDashboard.id_cuenta, cuentas.id_cuenta))
+    .where(and(...conditions))
+    .orderBy(usuariosDashboard.id_evento);
+}
+
+/** Construye el objeto user de NextAuth a partir de una fila de usuarios_dashboard. */
+function buildSessionUser(row: UsuarioConCuenta) {
+  return {
+    id: String(row.id_evento),
+    id_cuenta: row.id_cuenta!,
+    email: row.email,
+    name: row.nombre,
+    rol: row.rol,
+    subdominio: normalizeSubdominio(row.subdominio) ?? row.subdominio,
+    permisos: row.permisos,
+    permisosArray: resolvePermisos(row.rol, row.roles_config),
+    tipoUsuario: (row.tipo_usuario === "enfoque" ? "enfoque" : "analista") as "analista" | "enfoque",
+    mustChangePassword: false,
+  };
+}
+
+/**
+ * Verifica el código de login más reciente para un email.
+ * Consume el código si es correcto; incrementa intentos si no.
+ */
+async function verifyAndConsumeLoginCode(email: string, code: string): Promise<boolean> {
+  const [row] = await db
+    .select({
+      id: loginCodes.id,
+      code_hash: loginCodes.code_hash,
+      attempts: loginCodes.attempts,
+    })
+    .from(loginCodes)
+    .where(
+      and(
+        eq(loginCodes.email, email),
+        isNull(loginCodes.consumed_at),
+        gt(loginCodes.expires_at, new Date()),
+      ),
+    )
+    .orderBy(desc(loginCodes.created_at))
+    .limit(1);
+
+  if (!row) return false;
+  if (row.attempts >= MAX_CODE_ATTEMPTS) return false;
+
+  const matched = await compare(code, row.code_hash).catch(() => false);
+  if (!matched) {
+    await db
+      .update(loginCodes)
+      .set({ attempts: sql`${loginCodes.attempts} + 1` })
+      .where(eq(loginCodes.id, row.id));
+    return false;
+  }
+
+  await db.update(loginCodes).set({ consumed_at: new Date() }).where(eq(loginCodes.id, row.id));
+  return true;
+}
+
+const googleConfigured = Boolean(
+  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+);
+
 export const authConfig: NextAuthConfig = {
   providers: [
+    ...(googleConfigured
+      ? [
+          Google({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          }),
+        ]
+      : []),
     Credentials({
-      name: "credentials",
+      id: "email-otp",
+      name: "email-otp",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        code: { label: "Código", type: "text" },
         subdominio_override: { label: "Subdominio Override", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.code) return null;
 
         const email = (credentials.email as string).trim().toLowerCase();
-        const password = (credentials.password as string).trim();
-        const rawOverride = (credentials.subdominio_override as string | undefined)?.trim() || null;
-        // Normalizar: aceptar slug o dominio completo (ej. "tracker-credivit" o "tracker-credivit.leadmaster.com.co")
-        const subdominioOverride = rawOverride ? (normalizeSubdominio(rawOverride) ?? rawOverride) : null;
-        const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "leadmaster.com.co";
-        const subdominioOverrideFull = subdominioOverride ? `${subdominioOverride}.${rootDomain}` : null;
-
-        // Usuario plataforma (super admin global): credenciales desde env
-        const platformEmail = process.env.PLATFORM_ADMIN_EMAIL?.trim().toLowerCase();
-        const platformPassword = process.env.PLATFORM_ADMIN_PASSWORD;
-        if (platformEmail && platformPassword && email === platformEmail && password === platformPassword) {
-          return {
-            id: "platform-admin",
-            id_cuenta: null,
-            email: platformEmail,
-            name: "Administrador Plataforma",
-            rol: "superadmin",
-            subdominio: null,
-            permisos: null,
-            permisosArray: ALL_PERMISOS,
-            platformAdmin: true,
-            tipoUsuario: "analista" as const,
-          };
-        }
+        const code = (credentials.code as string).trim();
+        const subdominioOverride =
+          (credentials.subdominio_override as string | undefined)?.trim() || null;
 
         try {
-          const selectFields = {
-            id_evento: usuariosDashboard.id_evento,
-            id_cuenta: usuariosDashboard.id_cuenta,
-            nombre: usuariosDashboard.nombre,
-            email: usuariosDashboard.email,
-            pass: usuariosDashboard.pass,
-            rol: usuariosDashboard.rol,
-            permisos: usuariosDashboard.permisos,
-            subdominio: cuentas.subdominio,
-            roles_config: cuentas.roles_config,
-            tipo_usuario: usuariosDashboard.tipo_usuario,
-            must_change_password: usuariosDashboard.must_change_password,
-          };
-
-          let user: {
-            id_evento: number;
-            id_cuenta: number | null;
-            nombre: string | null;
-            email: string;
-            pass: string;
-            rol: string;
-            permisos: Record<string, boolean> | null;
-            subdominio: string;
-            roles_config: RolConfig[] | null;
-            tipo_usuario: string;
-            must_change_password: boolean;
-          } | undefined;
-
-          if (subdominioOverride) {
-            const result = await db
-              .select(selectFields)
-              .from(usuariosDashboard)
-              .innerJoin(cuentas, eq(usuariosDashboard.id_cuenta, cuentas.id_cuenta))
-              .where(
-                and(
-                  eq(usuariosDashboard.email, email),
-                  or(
-                    eq(cuentas.subdominio, subdominioOverride),
-                    ...(subdominioOverrideFull ? [eq(cuentas.subdominio, subdominioOverrideFull)] : []),
-                  ),
-                ),
-              )
-              .limit(1);
-
-            if (result.length === 0) {
-              console.error("[auth] usuario no encontrado:", email, `(subdominio: ${subdominioOverride})`);
-              return null;
-            }
-
-            const matched = await compare(password.trim(), result[0].pass).catch(() => false);
-            if (!matched) {
-              console.error("[auth] password incorrecta para:", email, `(subdominio: ${subdominioOverride})`);
-              return null;
-            }
-            user = result[0];
-          } else {
-            // Sin subdominio: el email puede existir en múltiples tenants.
-            // Probar compare() contra cada fila para encontrar la correcta.
-            const rows = await db
-              .select(selectFields)
-              .from(usuariosDashboard)
-              .innerJoin(cuentas, eq(usuariosDashboard.id_cuenta, cuentas.id_cuenta))
-              .where(eq(usuariosDashboard.email, email));
-
-            if (rows.length === 0) {
-              console.error("[auth] usuario no encontrado:", email);
-              return null;
-            }
-
-            const trimmedPassword = password.trim();
-            for (const row of rows) {
-              const matched = await compare(trimmedPassword, row.pass).catch(() => false);
-              if (matched) {
-                user = row;
-                break;
-              }
-            }
-
-            if (!user) {
-              console.error("[auth] password incorrecta para:", email, `(${rows.length} filas probadas)`);
-              return null;
-            }
-          }
-
-          if (!user) {
+          const codeOk = await verifyAndConsumeLoginCode(email, code);
+          if (!codeOk) {
+            console.error("[auth] código inválido o expirado para:", email);
             return null;
           }
 
-          const permisosArray = resolvePermisos(user.rol, user.roles_config);
+          let rows = await findUsuariosActivos(email, subdominioOverride);
+          // Si el scope de subdominio no matchea (ej. slug inválido), caer al global
+          if (rows.length === 0 && subdominioOverride) {
+            rows = await findUsuariosActivos(email);
+          }
+          if (rows.length === 0) {
+            console.error("[auth] usuario no encontrado o inactivo:", email);
+            return null;
+          }
 
-          const subdominioFinal = normalizeSubdominio(user.subdominio) ?? user.subdominio;
-
-          return {
-            id: String(user.id_evento),
-            id_cuenta: user.id_cuenta!,
-            email: user.email,
-            name: user.nombre,
-            rol: user.rol,
-            subdominio: subdominioFinal,
-            permisos: user.permisos,
-            permisosArray,
-            tipoUsuario: (user.tipo_usuario === "enfoque" ? "enfoque" : "analista") as "analista" | "enfoque",
-            mustChangePassword: user.must_change_password,
-          };
+          // Si el email existe en varias cuentas entra por la primera; el
+          // selector post-login cambia de cuenta vía /api/auth/switch-account.
+          return buildSessionUser(rows[0]);
         } catch (dbErr) {
-          console.error("[auth] error de DB en authorize:", dbErr);
+          console.error("[auth] error de DB en authorize (email-otp):", dbErr);
           return null;
         }
       },
@@ -184,7 +197,45 @@ export const authConfig: NextAuthConfig = {
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user, trigger }) {
+    async signIn({ user, account }) {
+      if (account?.provider !== "google") return true;
+      const email = user.email?.trim().toLowerCase();
+      if (!email) return false;
+      try {
+        const rows = await findUsuariosActivos(email);
+        if (rows.length === 0) {
+          console.error("[auth] login Google rechazado — sin acceso:", email);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        console.error("[auth] error de DB en signIn (google):", err);
+        return false;
+      }
+    },
+    async jwt({ token, user, account, trigger }) {
+      if (user && account?.provider === "google") {
+        // Google solo trae email/nombre: cargar el usuario desde la BD
+        const email = user.email?.trim().toLowerCase();
+        const rows = email ? await findUsuariosActivos(email).catch(() => []) : [];
+        if (rows.length > 0) {
+          const su = buildSessionUser(rows[0]);
+          token.id = su.id;
+          token.email = su.email;
+          token.id_cuenta = su.id_cuenta;
+          token.rol = su.rol;
+          token.subdominio = su.subdominio;
+          token.permisos = su.permisos;
+          token.permisosArray = su.permisosArray;
+          token.platformAdmin = false;
+          token.tipoUsuario = su.tipoUsuario;
+          token.tipoUsuarioCheckedAt = Date.now();
+          token.mustChangePassword = false;
+          token.multiCuenta = rows.length > 1;
+        }
+        return token;
+      }
+
       if (user) {
         token.id = user.id!;
         token.id_cuenta = (user as any).id_cuenta ?? null;
@@ -195,7 +246,7 @@ export const authConfig: NextAuthConfig = {
         token.platformAdmin = (user as any).platformAdmin ?? false;
         token.tipoUsuario = (user as any).tipoUsuario ?? "analista";
         token.tipoUsuarioCheckedAt = Date.now();
-        token.mustChangePassword = (user as any).mustChangePassword ?? false;
+        token.mustChangePassword = false;
       } else if (
         token.id_cuenta != null &&
         token.email &&
@@ -207,7 +258,10 @@ export const authConfig: NextAuthConfig = {
         if (forceRefresh || Date.now() - lastChecked > TIPO_USUARIO_TTL_MS) {
           try {
             const rows = await db
-              .select({ tipo_usuario: usuariosDashboard.tipo_usuario, must_change_password: usuariosDashboard.must_change_password })
+              .select({
+                tipo_usuario: usuariosDashboard.tipo_usuario,
+                activo: usuariosDashboard.activo,
+              })
               .from(usuariosDashboard)
               .where(
                 and(
@@ -217,11 +271,11 @@ export const authConfig: NextAuthConfig = {
               )
               .limit(1);
 
-            if (rows.length > 0) {
-              const fresh = rows[0].tipo_usuario === "enfoque" ? "enfoque" : "analista";
-              token.tipoUsuario = fresh as "analista" | "enfoque";
-              token.mustChangePassword = rows[0].must_change_password;
-            }
+            // Usuario eliminado o desactivado (ej. removido de GHL) → cerrar sesión
+            if (rows.length === 0 || !rows[0].activo) return null;
+
+            const fresh = rows[0].tipo_usuario === "enfoque" ? "enfoque" : "analista";
+            token.tipoUsuario = fresh as "analista" | "enfoque";
             token.tipoUsuarioCheckedAt = Date.now();
           } catch {
             // Fail-open: keep current tipoUsuario, retry on next TTL expiry
@@ -239,7 +293,7 @@ export const authConfig: NextAuthConfig = {
       session.user.permisosArray = (token.permisosArray as string[]) ?? [];
       session.user.platformAdmin = token.platformAdmin as boolean | undefined;
       session.user.tipoUsuario = token.tipoUsuario ?? "analista";
-      session.user.mustChangePassword = token.mustChangePassword ?? false;
+      session.user.mustChangePassword = false;
       return session;
     },
   },

@@ -35,14 +35,10 @@ export async function POST(req: Request) {
 
     for (const line of rows) {
       const cols = line.split(",").map((c) => c.trim());
-      const [nombre = "", email = "", password = "", rolRaw = "", fathom_api_key = ""] = cols;
+      const [nombre = "", email = "", rolRaw = "", fathom_api_key = ""] = cols;
 
       if (!email) {
         errores.push({ email: "(vacío)", error: "Email es obligatorio" });
-        continue;
-      }
-      if (!password) {
-        errores.push({ email, error: "Password es obligatorio" });
         continue;
       }
       if (!nombre) {
@@ -56,7 +52,6 @@ export async function POST(req: Request) {
         const { user } = await createUsuario(idCuenta, {
           nombre,
           email,
-          password,
           rol,
           fathom: fathom_api_key || undefined,
         });

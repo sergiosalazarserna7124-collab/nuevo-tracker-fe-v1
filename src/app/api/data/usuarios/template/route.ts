@@ -1,8 +1,8 @@
 export async function GET() {
   const csv = [
-    "nombre,email,password,rol,fathom_api_key",
-    "Juan Pérez,juan@ejemplo.com,Segura123!,usuario,",
-    "Ana Admin,ana@ejemplo.com,Clave456!,superadmin,fk_abc123xyz",
+    "nombre,email,rol,fathom_api_key",
+    "Juan Pérez,juan@ejemplo.com,usuario,",
+    "Ana Admin,ana@ejemplo.com,superadmin,fk_abc123xyz",
   ].join("\r\n");
 
   return new Response(csv, {

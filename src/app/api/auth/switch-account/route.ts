@@ -68,7 +68,13 @@ export async function POST(req: Request) {
     })
     .from(usuariosDashboard)
     .innerJoin(cuentas, eq(usuariosDashboard.id_cuenta, cuentas.id_cuenta))
-    .where(and(eq(usuariosDashboard.email, email), or(eq(cuentas.subdominio, subdominioSlug), eq(cuentas.subdominio, subdominioFull))))
+    .where(
+      and(
+        eq(usuariosDashboard.email, email),
+        eq(usuariosDashboard.activo, true),
+        or(eq(cuentas.subdominio, subdominioSlug), eq(cuentas.subdominio, subdominioFull)),
+      ),
+    )
     .limit(1);
 
   if (!row) {

@@ -471,7 +471,7 @@ export const usuariosDashboard = pgTable("usuarios_dashboard", {
   id_cuenta: integer("id_cuenta").references(() => cuentas.id_cuenta),
   nombre: text("nombre"),
   email: text("email").unique().notNull(),
-  pass: text("pass").notNull(),
+  pass: text("pass"),
   rol: text("rol").notNull(),
   permisos: jsonb("permisos").$type<Record<string, boolean>>(),
   fathom: text("fathom"),
@@ -479,6 +479,25 @@ export const usuariosDashboard = pgTable("usuarios_dashboard", {
   nombre_closer: text("nombre_closer"),
   tipo_usuario: text("tipo_usuario").notNull().default("analista"),
   must_change_password: boolean("must_change_password").notNull().default(false),
+  // Sync automático desde GHL (migración 061 del backend)
+  ghl_user_id: text("ghl_user_id"),
+  origen: text("origen").notNull().default("manual"),
+  activo: boolean("activo").notNull().default(true),
+  ghl_synced_at: timestamp("ghl_synced_at", { withTimezone: true }),
+});
+
+/* ------------------------------------------------------------------ */
+/*  login_codes — códigos de verificación para login sin contraseña   */
+/* ------------------------------------------------------------------ */
+
+export const loginCodes = pgTable("login_codes", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  code_hash: text("code_hash").notNull(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  consumed_at: timestamp("consumed_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /* ------------------------------------------------------------------ */

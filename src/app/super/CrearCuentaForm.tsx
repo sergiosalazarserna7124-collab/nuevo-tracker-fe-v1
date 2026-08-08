@@ -18,7 +18,6 @@ interface OkResult {
   subdominio: string;
   loginUrl: string;
   email: string;
-  provisionalPassword: string | null;
 }
 
 export default function CrearCuentaForm() {
@@ -84,15 +83,9 @@ export default function CrearCuentaForm() {
         <div className="mt-4 space-y-3 text-sm">
           <Field label="Link de acceso del cliente" value={result.loginUrl} />
           <Field label="Email" value={result.email} />
-          <Field
-            label="Contraseña provisional"
-            value={result.provisionalPassword ?? "(enviada por correo)"}
-          />
         </div>
         <p className="mt-4 text-xs text-slate-400">
-          {result.provisionalPassword
-            ? "Guarda esta contraseña ahora (se muestra una sola vez). Si el correo está activo, también le llegó al email. Al primer login se le pedirá cambiarla."
-            : "La contraseña provisional se envió al correo del usuario."}
+          El cliente entra con Google o con el código de verificación que se le envía al correo. No necesita contraseña.
         </p>
         <div className="mt-5 flex gap-3">
           <button
@@ -142,7 +135,7 @@ export default function CrearCuentaForm() {
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1.5">Email del admin del cliente *</label>
           <input className={inputCls} type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="admin@cliente.com" required />
-          <p className="mt-1 text-xs text-slate-500">Se crea su usuario y se le genera una contraseña provisional.</p>
+          <p className="mt-1 text-xs text-slate-500">Se crea su usuario; entrará con Google o código por correo.</p>
         </div>
         <div className="flex gap-3 pt-2">
           <button type="submit" disabled={loading} className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">

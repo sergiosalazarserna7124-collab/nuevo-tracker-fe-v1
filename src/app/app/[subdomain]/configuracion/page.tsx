@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import PageHeader from "@/components/dashboard/PageHeader";
 import HelpTooltip from "@/components/dashboard/HelpTooltip";
-import { UserPlus, Shield, Crown, Users, X, Key, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, Copy, FileDown, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle } from "lucide-react";
+import { UserPlus, Shield, Crown, Users, X, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle } from "lucide-react";
 import { useUserFilter } from "@/contexts/UserFilterContext";
 import { canManageUsers, canManageRoles, canManageSystem } from "@/lib/permisos";
 import { PERMISOS_DISPONIBLES, type PermisoId } from "@/lib/permisos";
@@ -174,10 +174,8 @@ export default function ConfiguracionPage() {
   const [saving, setSaving] = useState(false);
   const [modalUser, setModalUser] = useState<"create" | "edit" | null>(null);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
-  const [formUser, setFormUser] = useState({ name: "", email: "", password: "", fathom: "", rol: "usuario", tipo_usuario: "analista" as TipoUsuario });
+  const [formUser, setFormUser] = useState({ name: "", email: "", fathom: "", rol: "usuario", tipo_usuario: "analista" as TipoUsuario });
   const [error, setError] = useState("");
-
-  const [provisionalPassword, setProvisionalPassword] = useState<{ email: string; password: string } | null>(null);
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkFile, setBulkFile] = useState<File | null>(null);
@@ -283,15 +281,14 @@ export default function ConfiguracionPage() {
 
   const rolesParaSelect = [...ROLES_BUILTIN, ...roles.filter((r) => !["superadmin", "usuario"].includes(r.id))];
 
-  const openCreateUser = () => { setEditingUser(null); setFormUser({ name: "", email: "", password: "", fathom: "", rol: "usuario", tipo_usuario: "analista" }); setError(""); setModalUser("create"); };
-  const openEditUser = (u: UserRow) => { setEditingUser(u); setFormUser({ name: u.nombre ?? "", email: u.email, password: "", fathom: u.fathom ?? "", rol: u.rol, tipo_usuario: u.tipo_usuario ?? "analista" }); setError(""); setModalUser("edit"); };
+  const openCreateUser = () => { setEditingUser(null); setFormUser({ name: "", email: "", fathom: "", rol: "usuario", tipo_usuario: "analista" }); setError(""); setModalUser("create"); };
+  const openEditUser = (u: UserRow) => { setEditingUser(u); setFormUser({ name: u.nombre ?? "", email: u.email, fathom: u.fathom ?? "", rol: u.rol, tipo_usuario: u.tipo_usuario ?? "analista" }); setError(""); setModalUser("edit"); };
 
   const handleSubmitUser = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError("");
     try {
       if (editingUser) {
         const body: Record<string, unknown> = { id: editingUser.id, nombre: formUser.name, rol: formUser.rol, fathom: formUser.fathom, tipo_usuario: formUser.tipo_usuario };
-        if (formUser.password) body.password = formUser.password;
         const putRes = await fetch("/api/data/usuarios", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         if (!putRes.ok) throw new Error("Error al actualizar");
         const putData = await putRes.json().catch(() => ({}));
@@ -300,13 +297,11 @@ export default function ConfiguracionPage() {
       } else {
         if (!formUser.email) { setError("Email es obligatorio"); setSaving(false); return; }
         const payload: Record<string, unknown> = { nombre: formUser.name, email: formUser.email, rol: formUser.rol, fathom: formUser.fathom, tipo_usuario: formUser.tipo_usuario };
-        if (formUser.password) payload.password = formUser.password;
         const res = await fetch("/api/data/usuarios", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         if (!res.ok) { const data = await res.json().catch(() => ({})); setError(data.error ?? "Error al crear usuario"); setSaving(false); return; }
         const created = await res.json().catch(() => ({}));
-        if (created.provisionalPassword) { setProvisionalPassword({ email: created.email, password: created.provisionalPassword }); }
         if (created.fathomWarning) { toast.warning("Usuario creado, pero Fathom no registró el webhook", { description: created.fathomWarning }); }
-        else { toast.success(created.provisionalPassword ? "Usuario creado con contraseña provisional" : "Usuario creado"); }
+        else { toast.success("Usuario creado. Podrá entrar con Google o código por correo."); }
       }
       setModalUser(null); loadUsers();
     } catch { setError("Error de red"); }
@@ -805,7 +800,7 @@ export default function ConfiguracionPage() {
               {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>}
               <div><label className="block text-xs text-gray-400 mb-1">Nombre</label><input type="text" value={formUser.name} onChange={(e) => setFormUser((f) => ({ ...f, name: e.target.value }))} placeholder="Nombre completo" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40" /></div>
               <div><label className="block text-xs text-gray-400 mb-1">Email</label><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" /><input type="email" required={!editingUser} value={formUser.email} onChange={(e) => setFormUser((f) => ({ ...f, email: e.target.value }))} placeholder="usuario@empresa.com" disabled={!!editingUser} className="w-full rounded-lg bg-surface-700 border border-surface-500 pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40 disabled:opacity-50" /></div></div>
-              <div><label className="block text-xs text-gray-400 mb-1">{editingUser ? "Nueva contraseña (dejar vacío para no cambiar)" : "Contraseña (dejar vacío para auto-generar)"}</label><div className="relative"><Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" /><input type="password" value={formUser.password} onChange={(e) => setFormUser((f) => ({ ...f, password: e.target.value }))} placeholder={editingUser ? "••••••••" : "Dejar vacío para generar provisional"} className="w-full rounded-lg bg-surface-700 border border-surface-500 pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40" /></div>{!editingUser && !formUser.password && <p className="text-xs text-gray-500 mt-1">Se generará una contraseña provisional. El usuario deberá cambiarla en su primer login.</p>}</div>
+              {!editingUser && <p className="text-xs text-gray-500">El usuario iniciará sesión con Google o con un código enviado a su correo. No necesita contraseña.</p>}
               <div><label className="block text-xs text-gray-400 mb-1">API de Fathom (opcional)</label><input type="text" value={formUser.fathom} onChange={(e) => setFormUser((f) => ({ ...f, fathom: e.target.value }))} placeholder="Clave API Fathom" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40" /></div>
               <div><label className="block text-xs text-gray-400 mb-1">Rol</label><select value={formUser.rol} onChange={(e) => setFormUser((f) => ({ ...f, rol: e.target.value }))} className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40">{rolesParaSelect.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></div>
               <div><label className="block text-xs text-gray-400 mb-1">Tipo de usuario</label><select value={formUser.tipo_usuario} onChange={(e) => setFormUser((f) => ({ ...f, tipo_usuario: e.target.value as TipoUsuario }))} className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40"><option value="analista">Analista (ve todo el dashboard)</option><option value="enfoque">Enfoque (kiosko fullscreen, solo órdenes)</option></select>{formUser.tipo_usuario === "enfoque" && <p className="text-[11px] text-accent-purple mt-1">Este usuario solo verá el modo enfoque en pantalla completa al iniciar sesión.</p>}</div>
@@ -840,7 +835,7 @@ export default function ConfiguracionPage() {
               <button type="button" onClick={() => { setShowBulkModal(false); setBulkResult(null); }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             <form className="p-4 space-y-4" onSubmit={handleBulkUpload}>
-              <p className="text-xs text-gray-400">Sube un CSV con columnas: <code className="bg-surface-700 px-1 rounded">nombre, email, password, rol, fathom_api_key</code>.<br />Máximo 100 usuarios por lote.</p>
+              <p className="text-xs text-gray-400">Sube un CSV con columnas: <code className="bg-surface-700 px-1 rounded">nombre, email, rol, fathom_api_key</code>.<br />Máximo 100 usuarios por lote. Los usuarios entran con Google o código por correo.</p>
               <a href="/api/data/usuarios/template" download className="flex items-center gap-1.5 text-xs text-accent-cyan hover:underline"><Download className="w-3.5 h-3.5" /> Descargar plantilla CSV</a>
               <div><label className="block text-xs text-gray-400 mb-1">Archivo CSV</label><input ref={bulkFileRef} type="file" accept=".csv,text/csv" onChange={(e) => setBulkFile(e.target.files?.[0] ?? null)} className="w-full text-sm text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-accent-cyan/20 file:text-accent-cyan hover:file:bg-accent-cyan/30" /></div>
               {bulkResult && (
@@ -866,22 +861,6 @@ export default function ConfiguracionPage() {
               <div><label className="block text-xs text-gray-400 mb-1">Nombre del criterio</label><input type="text" value={formCustom.label} onChange={(e) => setFormCustom((f) => ({ ...f, label: e.target.value }))} placeholder="Ej: Interesado en compra" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-purple/40" />{formCustom.label.trim() && <p className="text-[10px] text-gray-500 mt-1">Slug: <code className="bg-surface-700 px-1 rounded">{slugify(formCustom.label)}</code></p>}</div>
               <div><label className="block text-xs text-gray-400 mb-1">Explicación (qué significa este criterio)</label><textarea value={formCustom.descripcion} onChange={(e) => setFormCustom((f) => ({ ...f, descripcion: e.target.value }))} placeholder="Describe cuándo un lead debería recibir esta categoría..." rows={3} className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-purple/40 resize-none" /></div>
               <div className="flex gap-2 pt-1"><button type="button" onClick={() => setModalCustom(null)} className="flex-1 px-3 py-2 rounded-lg bg-surface-600 text-gray-300 text-sm font-medium hover:bg-surface-500">Cancelar</button><button type="button" onClick={handleSubmitCustom} disabled={!formCustom.label.trim()} className="flex-1 px-3 py-2 rounded-lg bg-accent-purple text-white text-sm font-semibold hover:bg-accent-purple/90 disabled:opacity-50">{modalCustom === "edit" ? "Guardar" : "Agregar"}</button></div>
-            </div>
-          </div>
-        </div>
-      )}
-      {provisionalPassword && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-surface-800 rounded-2xl border border-surface-600 p-6 w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Contraseña provisional generada</h3>
-              <button onClick={() => setProvisionalPassword(null)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-            <p className="text-sm text-gray-400 mb-4">Comparte esta contraseña con <strong className="text-white">{provisionalPassword.email}</strong>. Solo se muestra una vez. El usuario deberá cambiarla en su primer login.</p>
-            <div className="bg-surface-700 rounded-lg px-4 py-3 font-mono text-lg text-accent-cyan select-all text-center mb-4 border border-surface-500">{provisionalPassword.password}</div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => { void navigator.clipboard.writeText(provisionalPassword.password); toast.success("Contraseña copiada al portapapeles"); }} className="flex-1 px-3 py-2 rounded-lg bg-accent-cyan text-black text-sm font-semibold hover:bg-accent-cyan/90 flex items-center justify-center gap-2"><Copy className="w-4 h-4" /> Copiar</button>
-              <button type="button" onClick={() => { const content = `Usuario: ${provisionalPassword.email}\nContraseña provisional: ${provisionalPassword.password}\n\nEsta contraseña debe ser cambiada en el primer inicio de sesión.`; const blob = new Blob([content], { type: "text/plain" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `credenciales-${provisionalPassword.email}.txt`; a.click(); URL.revokeObjectURL(url); toast.success("Archivo descargado"); }} className="flex-1 px-3 py-2 rounded-lg bg-surface-600 text-gray-300 text-sm font-medium hover:bg-surface-500 flex items-center justify-center gap-2"><FileDown className="w-4 h-4" /> Descargar</button>
             </div>
           </div>
         </div>

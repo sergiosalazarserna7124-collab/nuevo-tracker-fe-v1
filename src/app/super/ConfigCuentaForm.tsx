@@ -61,7 +61,6 @@ export default function ConfigCuentaForm({
   const [usuarioId, setUsuarioId] = useState<number | null>(null);
   const [usuarioNombre, setUsuarioNombre] = useState("");
   const [usuarioEmail, setUsuarioEmail] = useState("");
-  const [usuarioPass, setUsuarioPass] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -121,10 +120,8 @@ export default function ConfigCuentaForm({
         id_evento: usuarioId,
         nombre: usuarioNombre,
         email: usuarioEmail || undefined,
-        password: usuarioPass || undefined,
       });
       if ("error" in ru && ru.error) { setSaving(false); setError(ru.error); return; }
-      setUsuarioPass("");
     }
 
     setSaving(false);
@@ -183,11 +180,7 @@ export default function ConfigCuentaForm({
                     <input className={inputCls} type="email" value={usuarioEmail} onChange={(e) => setUsuarioEmail(e.target.value)} />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Contraseña (nueva)</label>
-                  <input className={inputCls} type="text" value={usuarioPass} onChange={(e) => setUsuarioPass(e.target.value)} placeholder="Dejar vacío para no cambiarla" />
-                  <p className="mt-1 text-xs text-slate-500">Si escribes una, reemplaza la contraseña actual del cliente.</p>
-                </div>
+                <p className="text-xs text-slate-500">El cliente inicia sesión con Google o con un código enviado a su correo.</p>
               </section>
             )}
 

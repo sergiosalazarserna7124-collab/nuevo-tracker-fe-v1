@@ -115,7 +115,10 @@ export default async function middleware(req: NextRequest) {
     if (session?.platformAdmin && (host === adminHost || isLocalhost)) {
       return NextResponse.redirect(new URL("/super", req.url));
     }
-    if (sessionSlug) return NextResponse.redirect(new URL("/dashboard", req.url));
+    // ?seleccionar=1: usuario autenticado (Google) con varias cuentas eligiendo una
+    if (sessionSlug && req.nextUrl.searchParams.get("seleccionar") !== "1") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
     return setCspHeaders(NextResponse.next(), null);
   }
 
@@ -143,15 +146,8 @@ export default async function middleware(req: NextRequest) {
   }
 
   // ── Autenticado (tenant desde la SESIÓN) ──────────────────────────────────
-  // mustChangePassword tiene PRIORIDAD: mientras esté activo, el usuario va a
-  // /cambiar-password. La regla de enfoque NO debe rebotarlo de vuelta (eso
-  // creaba el bucle /cambiar-password ⇄ /enfoque).
-  if (session.mustChangePassword && pathname !== "/cambiar-password") {
-    return NextResponse.redirect(new URL("/cambiar-password", req.url));
-  }
   if (
     session.tipoUsuario === "enfoque" &&
-    !session.mustChangePassword &&
     pathname !== "/enfoque" &&
     pathname !== "/cambiar-password"
   ) {
