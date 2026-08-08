@@ -761,6 +761,9 @@ export interface AsesorChat {
   chatId: string;
   leadName: string | null;
   leadEmail: string | null;
+  /** Identificador del lead en el chat (id_lead de GHL): suele ser el teléfono o el
+   *  contact_id. Se usa para cruzar el chat con el lead cuando no hay email. */
+  idLead: string | null;
   asesorName: string | null;
   estado: string | null;
   fechaUltimoMensaje: string;

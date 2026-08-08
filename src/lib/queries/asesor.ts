@@ -501,6 +501,7 @@ export async function getAsesorData(
       chatId: ch.chatid ?? String(ch.id_evento ?? ""),
       leadName: ch.nombre_lead ?? null,
       leadEmail: emailFromMsg ?? ch.id_lead ?? null,
+      idLead: ch.id_lead ?? null,
       asesorName,
       estado: ch.estado ?? "activo",
       fechaUltimoMensaje: ch.fecha_y_hora_z?.toISOString() ?? dateFrom,

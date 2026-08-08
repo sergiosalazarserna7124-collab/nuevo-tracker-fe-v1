@@ -726,6 +726,13 @@ const CANAL_META: Record<Interaccion["canal"], { icon: typeof Phone; color: stri
   cita: { icon: Video, color: "text-accent-purple", bg: "bg-accent-purple/20", nombre: "Cita" },
 };
 
+// Normaliza un teléfono/identificador a sus últimos 10 dígitos para cruzar leads y
+// chats sin importar el formato (+57, espacios, guiones, prefijo de país, etc.).
+function phoneKey(v?: string | null): string {
+  const digits = (v ?? "").replace(/\D/g, "");
+  return digits.length >= 8 ? digits.slice(-10) : "";
+}
+
 // Una llamada es "efectiva" si su tipo_evento GHL empieza por "efectiva_" (o quedó
 // clasificada como contestada). Se muestra como "Efectiva" en la lista y el detalle.
 function esLlamadaEfectiva(nota: AsesorNotaLlamada): boolean {
@@ -757,17 +764,25 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
   const interacciones = useMemo(() => {
     const le = lead.email?.trim().toLowerCase() ?? null;
     const ln = lead.name?.trim().toLowerCase() ?? null;
+    const lp = phoneKey(lead.phone);
     const matchLead = (email?: string | null, name?: string | null, contactId?: string | null) => {
       if (contactId && lead.ghlContactId && contactId === lead.ghlContactId) return true;
       if (le && email?.trim().toLowerCase() === le) return true;
       if (ln && name?.trim().toLowerCase() === ln) return true;
       return false;
     };
+    // Los chats no siempre traen email: id_lead (y a veces leadEmail) es el teléfono o
+    // el contact_id de GHL. Cruzamos por cualquiera de esos identificadores.
+    const matchChat = (c: AsesorChat) => {
+      if (matchLead(c.leadEmail, c.leadName, c.idLead)) return true;
+      if (lp && (phoneKey(c.idLead) === lp || phoneKey(c.leadEmail) === lp)) return true;
+      return false;
+    };
     const out: Interaccion[] = [];
     for (const n of lead.notasLlamadas) {
       out.push({ canal: "llamada", date: n.date, label: llamadaLabelDisplay(n) ?? estadoLabel(lead.estadoNormalizado), texto: llamadaResumenBreve(n), categoria: n.categoria ?? "otro", nota: n });
     }
-    for (const c of data.chats.filter((c) => matchLead(c.leadEmail, c.leadName, null))) {
+    for (const c of data.chats.filter(matchChat)) {
       const ultimo = c.messages[c.messages.length - 1];
       out.push({ canal: "chat", date: c.fechaUltimoMensaje, label: c.estado ?? (c.respondido ? "Respondido" : "Sin respuesta"), texto: ultimo ? `${ultimo.role === "lead" ? "Lead" : "Asesor"}: ${ultimo.message}` : `${c.messages.length} mensajes`, chat: c });
     }
