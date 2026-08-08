@@ -433,7 +433,7 @@ export interface CategoriaChat {
 // (condición + N acciones + fuentes + exclusiones), pero aplican SOLO cuando el
 // contacto está en esta etapa.
 export interface AccionReglaEtapa {
-  tipo: "cambiar_estado" | "asignar_etiqueta" | "etapa_cambiada" | "incrementar_metrica" | "asignar_categoria" | "escribir_campo_ghl" | "escribir_campo_ghl_ia";
+  tipo: "asignar_etiqueta" | "incrementar_metrica" | "asignar_categoria" | "escribir_campo_ghl" | "escribir_campo_ghl_ia" | "actualizar_pipeline";
   valor?: string;
   funnelStage?: string;
   metrica_id?: string;
@@ -441,6 +441,10 @@ export interface AccionReglaEtapa {
   categoria_id?: string;
   fieldId?: string;
   prompt?: string;
+  pipeline_id?: string;
+  pipeline_nombre?: string;
+  stage_id?: string;
+  stage_nombre?: string;
 }
 export interface ReglaEtapaLead {
   id: string;

@@ -52,7 +52,7 @@ interface DynamicValueConfigLocal {
 const MOSTRAR_VALOR_DINAMICO = false;
 
 interface AccionReglaLocal {
-  tipo: "cambiar_estado" | "asignar_etiqueta" | "etapa_cambiada" | "incrementar_metrica" | "asignar_categoria" | "escribir_campo_ghl" | "escribir_campo_ghl_ia";
+  tipo: "asignar_etiqueta" | "incrementar_metrica" | "asignar_categoria" | "escribir_campo_ghl" | "escribir_campo_ghl_ia" | "actualizar_pipeline";
   valor?: string;
   funnelStage?: string;
   metrica_id?: string;
@@ -60,6 +60,11 @@ interface AccionReglaLocal {
   categoria_id?: string;
   fieldId?: string;
   prompt?: string;
+  // actualizar_pipeline: mover el opportunity del contacto al pipeline/etapa de GHL
+  pipeline_id?: string;
+  pipeline_nombre?: string;
+  stage_id?: string;
+  stage_nombre?: string;
 }
 interface TagRule {
   id: string;
@@ -400,6 +405,27 @@ export default function SystemPage() {
   const [cchEtManual, setCchEtManual] = useState(false);
   const [ghlEtiquetasOpen, setGhlEtiquetasOpen] = useState(false);
   const [ghlEtiquetasLoading, setGhlEtiquetasLoading] = useState(false);
+  // Pipelines de GHL (para la acción "Actualizar pipeline")
+  interface GhlPipeline { id: string; name: string; stages: Array<{ id: string; name: string }> }
+  const [ghlPipelines, setGhlPipelines] = useState<GhlPipeline[]>([]);
+  const [ghlPipelinesLoaded, setGhlPipelinesLoaded] = useState(false);
+  const [ghlPipelinesLoading, setGhlPipelinesLoading] = useState(false);
+  const cargarPipelines = async () => {
+    if (ghlPipelinesLoading) return;
+    setGhlPipelinesLoading(true);
+    try {
+      const res = await fetch('/api/data/ghl-pipelines');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error('No se pudieron cargar los pipelines de GHL'); }
+      else {
+        setGhlPipelines(Array.isArray(data.pipelines) ? data.pipelines : []);
+        setGhlPipelinesLoaded(true);
+        if ((data.pipelines?.length ?? 0) === 0) toast.warning('No se encontraron pipelines en GHL');
+        else toast.success(`${data.pipelines.length} pipeline(s) sincronizado(s)`);
+      }
+    } catch { toast.error('Error de red cargando pipelines'); }
+    setGhlPipelinesLoading(false);
+  };
   // Categorías de chats por etiqueta (prompt de análisis según etapa del contacto)
   const [categoriasChats, setCategoriasChats] = useState<CategoriaChat[]>([]);
   const [cchNombre, setCchNombre] = useState('');
@@ -1182,9 +1208,8 @@ export default function SystemPage() {
                                       <option value="asignar_etiqueta">Poner etiqueta</option>
                                       <option value="escribir_campo_ghl">Escribir en un campo de GHL</option>
                                       <option value="escribir_campo_ghl_ia">Llenar campo de GHL con IA</option>
-                                      <option value="cambiar_estado">Cambiar estado</option>
-                                      <option value="etapa_cambiada">Etapa cambiada</option>
                                       <option value="incrementar_metrica">Incrementar métrica</option>
+                                      <option value="actualizar_pipeline">Actualizar pipeline</option>
                                       {categoriasLlamadas.length > 0 && <option value="asignar_categoria">Asignar categoría</option>}
                                     </select>
                                   </div>
@@ -1224,21 +1249,42 @@ export default function SystemPage() {
                                       </div>
                                     </>
                                   )}
-                                  {a.tipo === 'cambiar_estado' && (
-                                    <div className="flex-1 min-w-[120px]">
-                                      <label className="block text-[10px] font-medium text-accent-cyan mb-0.5">Estado</label>
-                                      <input type="text" value={a.valor ?? ''} onChange={(e) => updateAccion(ai, { valor: e.target.value })}
-                                        placeholder="nuevo_estado" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40" />
-                                    </div>
-                                  )}
-                                  {a.tipo === 'etapa_cambiada' && (
-                                    <div className="flex-1 min-w-[140px]">
-                                      <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Etapa del embudo</label>
-                                      <select value={a.funnelStage ?? ''} onChange={(e) => updateAccion(ai, { funnelStage: e.target.value || undefined, valor: e.target.value || undefined })}
-                                        className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
-                                        <option value="">— Seleccionar —</option>
-                                        {embudoEtapas.map((e) => (<option key={e.id} value={e.nombre}>{e.nombre}</option>))}
-                                      </select>
+                                  {a.tipo === 'actualizar_pipeline' && (
+                                    <div className="flex-1 min-w-[220px] space-y-1.5">
+                                      {!ghlPipelinesLoaded ? (
+                                        <button type="button" onClick={cargarPipelines} disabled={ghlPipelinesLoading}
+                                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-[11px] font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
+                                          {ghlPipelinesLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitBranch className="w-3.5 h-3.5" />} Sincronizar pipelines de GHL
+                                        </button>
+                                      ) : (
+                                        <div className="grid sm:grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Pipeline</label>
+                                            <select value={a.pipeline_id ?? ''} onChange={(e) => {
+                                                const p = ghlPipelines.find((pp) => pp.id === e.target.value);
+                                                updateAccion(ai, { pipeline_id: p?.id, pipeline_nombre: p?.name, stage_id: undefined, stage_nombre: undefined });
+                                              }}
+                                              className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white">
+                                              <option value="">— Seleccionar pipeline —</option>
+                                              {ghlPipelines.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Etapa</label>
+                                            <select value={a.stage_id ?? ''} disabled={!a.pipeline_id}
+                                              onChange={(e) => {
+                                                const p = ghlPipelines.find((pp) => pp.id === a.pipeline_id);
+                                                const s = p?.stages.find((ss) => ss.id === e.target.value);
+                                                updateAccion(ai, { stage_id: s?.id, stage_nombre: s?.name });
+                                              }}
+                                              className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white disabled:opacity-50">
+                                              <option value="">— Seleccionar etapa —</option>
+                                              {(ghlPipelines.find((p) => p.id === a.pipeline_id)?.stages ?? []).map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                                            </select>
+                                          </div>
+                                          <p className="sm:col-span-2 text-[10px] text-gray-500">Cuando la condición se cumpla, el opportunity del contacto se mueve automáticamente a esta etapa. <button type="button" onClick={cargarPipelines} className="text-accent-purple hover:underline">Re-sincronizar</button></p>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   {a.tipo === 'incrementar_metrica' && (

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import PageHeader from "@/components/dashboard/PageHeader";
 import HelpTooltip from "@/components/dashboard/HelpTooltip";
 import DocumentacionContent from "@/components/dashboard/DocumentacionContent";
-import { UserPlus, Shield, Crown, Users, X, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle } from "lucide-react";
+import { UserPlus, Shield, Crown, Users, X, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle, Lock, Eye, EyeOff } from "lucide-react";
 import { useUserFilter } from "@/contexts/UserFilterContext";
 import { canManageUsers, canManageRoles, canManageSystem } from "@/lib/permisos";
 import { PERMISOS_DISPONIBLES, type PermisoId } from "@/lib/permisos";
@@ -179,6 +179,13 @@ export default function ConfiguracionPage() {
   const [error, setError] = useState("");
   const [fathomEdit, setFathomEdit] = useState<Record<number, string>>({});
   const [fathomSaving, setFathomSaving] = useState<number | null>(null);
+  const [fathomReveal, setFathomReveal] = useState<Record<number, boolean>>({});
+  // Enmascara la llave: nunca se muestra el texto completo, solo los últimos 4.
+  const maskFathom = (key: string) => {
+    const k = key.trim();
+    if (!k) return "";
+    return k.length <= 4 ? "••••" : `••••••••${k.slice(-4)}`;
+  };
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkFile, setBulkFile] = useState<File | null>(null);
@@ -588,23 +595,16 @@ export default function ConfiguracionPage() {
                       </div>
                       <span className="text-gray-500 text-xs block">{u.email}</span>
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                        <input
-                          type="text"
-                          value={fathomEdit[u.id] ?? u.fathom ?? ""}
-                          onChange={(e) => setFathomEdit((prev) => ({ ...prev, [u.id]: e.target.value }))}
-                          placeholder="Llave API de Fathom (para trackear sus citas grabadas)"
-                          className="w-72 max-w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white placeholder-gray-500 font-mono focus:ring-2 focus:ring-accent-cyan/40"
-                        />
-                        <button
-                          type="button"
-                          disabled={fathomSaving === u.id || (fathomEdit[u.id] ?? u.fathom ?? "") === (u.fathom ?? "")}
-                          onClick={async () => {
+                        {(() => {
+                          const hasKey = !!u.fathom?.trim();
+                          const isEditing = fathomEdit[u.id] !== undefined;
+                          const guardarLlave = async (valor: string) => {
                             setFathomSaving(u.id);
                             try {
                               const res = await fetch("/api/data/usuarios", {
                                 method: "PUT",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ id: u.id, fathom: fathomEdit[u.id] ?? "" }),
+                                body: JSON.stringify({ id: u.id, fathom: valor }),
                               });
                               const d = await res.json().catch(() => ({}));
                               if (!res.ok) toast.error("No se pudo guardar la llave de Fathom");
@@ -612,18 +612,63 @@ export default function ConfiguracionPage() {
                               else toast.success("Llave de Fathom guardada");
                               await loadUsers();
                               setFathomEdit((prev) => { const n = { ...prev }; delete n[u.id]; return n; });
+                              setFathomReveal((prev) => { const n = { ...prev }; delete n[u.id]; return n; });
                             } catch { toast.error("Error de red guardando la llave"); }
                             setFathomSaving(null);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40 text-[11px] font-semibold hover:bg-accent-cyan/30 disabled:opacity-40"
-                        >
-                          {fathomSaving === u.id ? "Guardando…" : "Guardar llave"}
-                        </button>
-                        {u.fathom?.trim() && (
-                          <span className={`text-[10px] ${u.id_webhook_fathom ? "text-accent-green" : "text-amber-400"}`}>
-                            {u.id_webhook_fathom ? "✓ webhook Fathom activo" : "⚠ llave sin webhook"}
-                          </span>
-                        )}
+                          };
+
+                          // Llave ya guardada y sin editar → mostrarla enmascarada.
+                          if (hasKey && !isEditing) {
+                            return (
+                              <>
+                                <span className="w-72 max-w-full inline-flex items-center gap-1.5 rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-gray-300 font-mono" title="Llave oculta por seguridad">
+                                  <Lock className="w-3 h-3 text-gray-500 shrink-0" />
+                                  <span className="truncate">{maskFathom(u.fathom!)}</span>
+                                </span>
+                                <button type="button" onClick={() => setFathomEdit((prev) => ({ ...prev, [u.id]: "" }))}
+                                  className="px-2.5 py-1 rounded-lg bg-surface-600 text-gray-300 border border-surface-500 text-[11px] font-semibold hover:border-gray-400">
+                                  Cambiar
+                                </button>
+                                <span className={`text-[10px] ${u.id_webhook_fathom ? "text-accent-green" : "text-amber-400"}`}>
+                                  {u.id_webhook_fathom ? "✓ webhook Fathom activo" : "⚠ llave sin webhook"}
+                                </span>
+                              </>
+                            );
+                          }
+
+                          // Sin llave o en modo edición → input tipo password + ver/ocultar.
+                          const valor = fathomEdit[u.id] ?? "";
+                          return (
+                            <>
+                              <div className="relative w-72 max-w-full">
+                                <input
+                                  type={fathomReveal[u.id] ? "text" : "password"}
+                                  value={valor}
+                                  onChange={(e) => setFathomEdit((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                                  placeholder="Llave API de Fathom (para trackear sus citas grabadas)"
+                                  autoComplete="off"
+                                  className="w-full rounded-lg bg-surface-600 border border-surface-500 pl-2 pr-8 py-1 text-xs text-white placeholder-gray-500 font-mono focus:ring-2 focus:ring-accent-cyan/40"
+                                />
+                                <button type="button" onClick={() => setFathomReveal((p) => ({ ...p, [u.id]: !p[u.id] }))}
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300" title={fathomReveal[u.id] ? "Ocultar" : "Ver"}>
+                                  {fathomReveal[u.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={fathomSaving === u.id || valor.trim() === ""}
+                                onClick={() => guardarLlave(valor.trim())}
+                                className="px-2.5 py-1 rounded-lg bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40 text-[11px] font-semibold hover:bg-accent-cyan/30 disabled:opacity-40"
+                              >
+                                {fathomSaving === u.id ? "Guardando…" : "Guardar llave"}
+                              </button>
+                              {hasKey && (
+                                <button type="button" onClick={() => { setFathomEdit((prev) => { const n = { ...prev }; delete n[u.id]; return n; }); setFathomReveal((prev) => { const n = { ...prev }; delete n[u.id]; return n; }); }}
+                                  className="text-[11px] text-gray-500 hover:text-gray-300">Cancelar</button>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -662,7 +707,7 @@ export default function ConfiguracionPage() {
               <div><label className="block text-xs text-gray-400 mb-1">Nombre</label><input type="text" value={formUser.name} onChange={(e) => setFormUser((f) => ({ ...f, name: e.target.value }))} placeholder="Nombre completo" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40" /></div>
               <div><label className="block text-xs text-gray-400 mb-1">Email</label><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" /><input type="email" required={!editingUser} value={formUser.email} onChange={(e) => setFormUser((f) => ({ ...f, email: e.target.value }))} placeholder="usuario@empresa.com" disabled={!!editingUser} className="w-full rounded-lg bg-surface-700 border border-surface-500 pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40 disabled:opacity-50" /></div></div>
               {!editingUser && <p className="text-xs text-gray-500">El usuario iniciará sesión con Google o con un código enviado a su correo. No necesita contraseña.</p>}
-              <div><label className="block text-xs text-gray-400 mb-1">API de Fathom (opcional)</label><input type="text" value={formUser.fathom} onChange={(e) => setFormUser((f) => ({ ...f, fathom: e.target.value }))} placeholder="Clave API Fathom" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40" /></div>
+              <div><label className="block text-xs text-gray-400 mb-1">API de Fathom (opcional)</label><input type="password" autoComplete="off" value={formUser.fathom} onChange={(e) => setFormUser((f) => ({ ...f, fathom: e.target.value }))} placeholder="Clave API Fathom" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-cyan/40" /></div>
               <div><label className="block text-xs text-gray-400 mb-1">Rol</label><select value={formUser.rol} onChange={(e) => setFormUser((f) => ({ ...f, rol: e.target.value }))} className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40">{rolesParaSelect.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></div>
               <div><label className="block text-xs text-gray-400 mb-1">Tipo de usuario</label><select value={formUser.tipo_usuario} onChange={(e) => setFormUser((f) => ({ ...f, tipo_usuario: e.target.value as TipoUsuario }))} className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-2 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40"><option value="analista">Analista (ve todo el dashboard)</option><option value="enfoque">Enfoque (kiosko fullscreen, solo órdenes)</option></select>{formUser.tipo_usuario === "enfoque" && <p className="text-[11px] text-accent-purple mt-1">Este usuario solo verá el modo enfoque en pantalla completa al iniciar sesión.</p>}</div>
               <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalUser(null)} className="flex-1 px-3 py-2 rounded-lg bg-surface-600 text-gray-300 text-sm font-medium hover:bg-surface-500">Cancelar</button><button type="submit" disabled={saving} className="flex-1 px-3 py-2 rounded-lg bg-accent-cyan text-black text-sm font-semibold hover:bg-accent-cyan/90 disabled:opacity-50">{saving ? "Guardando..." : editingUser ? "Guardar" : "Crear usuario"}</button></div>
