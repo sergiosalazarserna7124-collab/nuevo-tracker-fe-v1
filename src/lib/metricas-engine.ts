@@ -17,6 +17,7 @@ export const KPI_DEFAULT_KEYS = [
   "effectiveAppointments",
   "tasaCierre",
   "tasaAgendamiento",
+  "tasaAsistencia",
   "revenue",
   "cashCollected",
   "avgTicket",
@@ -61,6 +62,7 @@ export const KPI_DEFAULT_LABELS: Record<string, string> = {
   effectiveAppointments: "Efectivas",
   tasaCierre: "Tasa de cierre",
   tasaAgendamiento: "Tasa agendamiento",
+  tasaAsistencia: "Tasa de asistencia",
   revenue: "Ingresos",
   cashCollected: "Efectivo cobrado",
   avgTicket: "Ticket promedio",
@@ -78,7 +80,7 @@ export const KPI_DEFAULT_LABELS: Record<string, string> = {
   noShows: "No shows",
   ticket: "Ticket (citas)",
   pendientesLlamadas: "Llamadas pendientes",
-  pendientesAgendas: "Videollamadas pendientes",
+  pendientesAgendas: "Citas pendientes",
   leadsDescartados: "Leads descartados",
   leadsReactivados: "Leads reactivados",
   oportunidadesCreadas: "Oportunidades creadas",
@@ -103,16 +105,17 @@ export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   // --- Bloque 2: Velocidad y esfuerzo ---
   { id: "default-speed", nombre: "Speed to lead general", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 4, formato: "tiempo", color: "purple", formula: { tipo: "directo", fuente: "speedToLeadAvg" }, descripcion: "Minutos promedio desde que se creó el lead hasta la primera llamada (sin importar horario ni zona)." },
   { id: "default-speed-asesor", nombre: "Speed to lead asesor", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 5, formato: "tiempo", color: "cyan", formula: { tipo: "directo", fuente: "speedToLeadAsesor" }, descripcion: "Minutos promedio EN HORARIO LABORAL desde que se asignó el lead al asesor hasta la primera llamada." },
-  { id: "default-intentos", nombre: "Intentos promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 5, formato: "decimal", color: "amber", formula: { tipo: "directo", fuente: "avgAttempts" }, descripcion: "Llamadas promedio por lead" },
+  { id: "default-intentos", nombre: "Intentos promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 5, formato: "decimal", color: "amber", formula: { tipo: "directo", fuente: "avgAttempts" }, descripcion: "Llamadas realizadas ÷ Leads del período (50 leads y 75 llamadas → 1.5)" },
   // --- Bloque 3: Pipeline de citas ---
   { id: "default-agendadas", nombre: "Citas agendadas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 6, formato: "numero", color: "purple", formula: { tipo: "directo", fuente: "meetingsBooked" } },
   { id: "default-asistidas", nombre: "Citas asistidas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 7, formato: "numero", color: "green", formula: { tipo: "directo", fuente: "meetingsAttended" }, descripcion: "Leads que asistieron a la cita (con interacción real: grabación/transcript)" },
-  { id: "default-tasa-agendamiento", nombre: "Tasa de agendamiento", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 8, formato: "porcentaje", color: "purple", formula: { tipo: "directo", fuente: "tasaAgendamiento" }, descripcion: "Citas ÷ Leads trabajados" },
+  { id: "default-tasa-agendamiento", nombre: "Tasa de agendamiento", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 8, formato: "porcentaje", color: "purple", formula: { tipo: "directo", fuente: "tasaAgendamiento" }, descripcion: "Leads que agendaron ÷ Leads que contestaron" },
+  { id: "default-tasa-asistencia", nombre: "Tasa de asistencia", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 8, formato: "porcentaje", color: "cyan", formula: { tipo: "directo", fuente: "tasaAsistencia" }, descripcion: "Asistidas ÷ (Agendadas − Pendientes − Canceladas). Ej: 13 agendadas, 1 cancelada, 2 pendientes, 8 asistidas → 80%" },
   { id: "default-no-shows", nombre: "No shows", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 8, formato: "numero", color: "amber", formula: { tipo: "directo", fuente: "noShows" }, descripcion: "Personas que no se presentaron" },
   { id: "default-canceladas", nombre: "Canceladas", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 9, formato: "numero", color: "red", formula: { tipo: "directo", fuente: "meetingsCanceled" }, descripcion: "Citas canceladas por el lead" },
-  { id: "default-pendientes-agendas", nombre: "Videollamadas pendientes", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 9, formato: "numero", color: "blue", formula: { tipo: "directo", fuente: "pendientesAgendas" }, descripcion: "Citas agendadas sin resultado aún: la reunión no ha ocurrido, o pasó y espera clasificación (Fathom o el barrido nocturno de no-shows)" },
+  { id: "default-pendientes-agendas", nombre: "Citas pendientes", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 9, formato: "numero", color: "blue", formula: { tipo: "directo", fuente: "pendientesAgendas" }, descripcion: "Citas agendadas sin resultado aún: la reunión no ha ocurrido, o pasó y espera clasificación (Fathom o el barrido de no-shows)" },
   // --- Bloque 4: Cierre ---
-  { id: "default-tasa-cierre", nombre: "Tasa de cierre", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 10, formato: "porcentaje", color: "green", formula: { tipo: "directo", fuente: "tasaCierre" }, descripcion: "Cerradas ÷ Asistidas" },
+  { id: "default-tasa-cierre", nombre: "Tasa de cierre", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 10, formato: "porcentaje", color: "green", formula: { tipo: "directo", fuente: "tasaCierre" }, descripcion: "Ventas (etiqueta compro) ÷ Citas asistidas" },
   // --- Bloque 5: Dinero ---
   // Apartados/Ventas: se alimentan de las etiquetas GHL "apartado" y "compro"
   // sobre el contacto — el backend marca la oportunidad y guarda los montos
@@ -126,7 +129,7 @@ export const DEFAULT_METRICAS_CONFIG: MetricaConfig[] = [
   // Apartados/Ventas por etiqueta. Las fuentes siguen disponibles para
   // configs manuales; no re-agregar aquí (el merge de missingDefaults las
   // reviviría en cuentas con config guardada).
-  { id: "default-ticket", nombre: "Ticket promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 13, formato: "moneda", color: "blue", formula: { tipo: "directo", fuente: "avgTicket" }, descripcion: "Ingresos ÷ Citas efectivas" },
+  { id: "default-ticket", nombre: "Ticket promedio", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 13, formato: "moneda", color: "blue", formula: { tipo: "directo", fuente: "avgTicket" }, descripcion: "Monto vendido ÷ Ventas (5 ventas de $500.000 en total → $100.000)" },
   // --- Bloque 6: Calidad de leads ---
   { id: "default-descartados", nombre: "Leads descartados", tipo: "automatica", ubicacion: "panel_ejecutivo", orden: 14, formato: "numero", color: "red", formula: { tipo: "directo", fuente: "leadsDescartados" }, descripcion: "Leads marcados como descartados (etiqueta descartar-lead o descarte manual). No cuentan en las métricas globales, pero quedan visibles aquí." },
 ];

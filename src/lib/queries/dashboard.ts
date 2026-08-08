@@ -494,9 +494,14 @@ export async function getDashboard(
     attemptsByLead[key] = (attemptsByLead[key] ?? 0) + 1;
   }
   const leadKeysArr = Object.keys(attemptsByLead);
-  const attemptsAvg = leadKeysArr.length > 0
-    ? Object.values(attemptsByLead).reduce((s, v) => s + v, 0) / leadKeysArr.length
-    : 0;
+  // Intentos promedio = FRECUENCIA de llamadas sobre los leads del período:
+  // llamadas realizadas ÷ leads llegados (50 leads y 75 llamadas → 1.5).
+  // Si el período no tiene leads nuevos, cae a llamadas ÷ leads llamados.
+  const attemptsAvg = totalLeads > 0
+    ? filteredCalls.length / totalLeads
+    : leadKeysArr.length > 0
+      ? filteredCalls.length / leadKeysArr.length
+      : 0;
 
   const tasaCierre = asistidas > 0 ? cerradas / asistidas : 0;
 
@@ -514,10 +519,10 @@ export async function getDashboard(
       .map((a) => agendaDedupKey(a))
   );
   const meetingsBooked = uniqueBookedLeads.size;
-  // tasaAgendamiento usa leadsConActividad (leads que recibieron llamada/agenda)
-  // no el total de leads generados — la tasa mide del universo trabajado, cuántos agendaron
-  const leadsConActividadSize = leadsConActividad.size > 0 ? leadsConActividad.size : 1;
-  const tasaAgendamiento = leadsConActividadSize > 0 ? meetingsBooked / leadsConActividadSize : 0;
+  // tasaAgendamiento = leads que AGENDARON ÷ leads que CONTESTARON (definición
+  // de Sergio 2026-08-08): del universo que sí atendió la llamada, cuántos
+  // terminaron agendando.
+  const tasaAgendamiento = leadsContactados > 0 ? meetingsBooked / leadsContactados : 0;
 
   const callsNuevos = filteredCalls.filter((c) => leadsNuevosSet.has(normLeadKey(c.mail_lead, c.phone, c.id))).length;
   const callsReactivados = filteredCalls.length - callsNuevos;
@@ -641,6 +646,17 @@ export async function getDashboard(
   kpis.montoApartado = Number(finRow?.monto_apartado ?? 0);
   kpis.ventas = Number(finRow?.ventas ?? 0);
   kpis.montoVendido = Number(finRow?.monto_vendido ?? 0);
+
+  // ── Tasas de cierre (definiciones de Sergio, 2026-08-08) ───────────────────
+  // Tasa de cierre    = Ventas (etiqueta 'compro') ÷ Citas asistidas.
+  // Ticket promedio   = Monto vendido ÷ Ventas (5 ventas de $500.000 → $100.000).
+  // Tasa de asistencia = Asistidas (incl. cerradas) ÷ (Agendadas − Pendientes −
+  //   Canceladas): 13 agendadas, 1 cancelada, 2 pendientes, 2 no-show y 8
+  //   asistidas → 8/10 = 80%. Las pendientes/canceladas no castigan la tasa.
+  kpis.tasaCierre = kpis.asistidas > 0 ? kpis.ventas / kpis.asistidas : 0;
+  kpis.avgTicket = kpis.ventas > 0 ? kpis.montoVendido / kpis.ventas : 0;
+  const baseAsistencia = kpis.agendadas - kpis.pendientesAgendas - kpis.canceladas;
+  kpis.tasaAsistencia = baseAsistencia > 0 ? (kpis.asistidas + kpis.meetingsClosed) / baseAsistencia : 0;
 
   // Speed to lead (ambos) desde registros_de_llamada:
   //  - GENERAL  = minutos desde fecha_evento (creación) hasta fecha_primera_llamada
