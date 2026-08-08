@@ -424,6 +424,26 @@ export interface CategoriaChat {
   prompt: string;
 }
 
+// ─── Categorías de LEADS unificadas (etapa del lead) ──────────────────────────
+// La etiqueta del contacto define su etapa; TODA interacción (chat, llamada,
+// cita) se evalúa con el prompt de la etapa, se resume con prompt_resumen y
+// las reglas de etiquetas de la etapa aplican SOLO ahí.
+
+export interface ReglaEtapaLead {
+  id: string;
+  tag: string;
+  condition: string;
+}
+
+export interface CategoriaLead {
+  id: string;
+  nombre: string;
+  etiqueta: string;
+  prompt: string;
+  prompt_resumen?: string;
+  reglas_etiquetas?: ReglaEtapaLead[];
+}
+
 // ─── Closer merge rules ───────────────────────────────────────────────────────
 
 export interface CloserMergeRule {
@@ -480,6 +500,7 @@ export const cuentas = pgTable("cuentas", {
   categorias_llamadas: jsonb("categorias_llamadas").$type<CategoriaLlamada[]>(),
   categorias_citas: jsonb("categorias_citas").$type<CategoriaCita[]>(),
   categorias_chats: jsonb("categorias_chats").$type<CategoriaChat[]>(),
+  categorias_leads: jsonb("categorias_leads").$type<CategoriaLead[]>(),
   exclusiones_coach: jsonb("exclusiones_coach").$type<ExclusionesCoach>(),
   gemini_api_key: text("gemini_api_key"),
   gemini_premium_status: text("gemini_premium_status").$type<"active" | "paused_invalid_key" | "paused_quota_exceeded" | null>(),

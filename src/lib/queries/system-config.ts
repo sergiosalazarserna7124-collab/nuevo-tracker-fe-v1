@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { cuentas, metasCuenta, normalizeEmbudoEtapas } from "@/lib/db/schema";
 import type { ReglaEtiqueta, MetricaPersonalizada, ChatTrigger, EmbudoEtapa, TipoEventoConfig, RolConfig, MetricaConfig, MetricaManualEntry, ConfiguracionAds, DashboardPersonalizado, CategoriaLlamada,
-  CategoriaCita, CategoriaChat, ExclusionesCoach } from "@/lib/db/schema";
+  CategoriaCita, CategoriaChat, CategoriaLead, ExclusionesCoach } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { parseMetricasConfig } from "@/lib/metricas-engine";
 import { HORARIO_LABORAL_DEFAULT, type HorarioLaboral } from "@/lib/business-hours";
@@ -54,6 +54,7 @@ export interface SystemConfigData {
   categorias_llamadas: CategoriaLlamada[];
   categorias_citas: CategoriaCita[];
   categorias_chats: CategoriaChat[];
+  categorias_leads: CategoriaLead[];
   exclusiones_coach: ExclusionesCoach | null;
   /** Horario laboral para el "speed to lead asesor". */
   horario_laboral: HorarioLaboral;
@@ -110,6 +111,7 @@ export async function getSystemConfig(idCuenta: number): Promise<SystemConfigDat
         categorias_llamadas: cuentas.categorias_llamadas,
         categorias_citas: cuentas.categorias_citas,
         categorias_chats: cuentas.categorias_chats,
+        categorias_leads: cuentas.categorias_leads,
         exclusiones_coach: cuentas.exclusiones_coach,
         gemini_api_key: cuentas.gemini_api_key,
         gemini_premium_status: cuentas.gemini_premium_status,
@@ -157,6 +159,7 @@ export async function getSystemConfig(idCuenta: number): Promise<SystemConfigDat
       categorias_llamadas: [],
       categorias_citas: [],
       categorias_chats: [],
+      categorias_leads: [],
       exclusiones_coach: null,
       horario_laboral: HORARIO_LABORAL_DEFAULT,
     };
@@ -200,6 +203,7 @@ export async function getSystemConfig(idCuenta: number): Promise<SystemConfigDat
     categorias_llamadas: Array.isArray(r.categorias_llamadas) ? r.categorias_llamadas : [],
     categorias_citas: Array.isArray(r.categorias_citas) ? r.categorias_citas : [],
     categorias_chats: Array.isArray(r.categorias_chats) ? r.categorias_chats : [],
+    categorias_leads: Array.isArray(r.categorias_leads) ? r.categorias_leads : [],
     exclusiones_coach: (r.exclusiones_coach && typeof r.exclusiones_coach === "object") ? r.exclusiones_coach as ExclusionesCoach : null,
     horario_laboral: r.configuracion_ui?.horario_laboral ?? HORARIO_LABORAL_DEFAULT,
   };
@@ -275,6 +279,7 @@ export async function updateSystemConfig(
   if (data.categorias_llamadas !== undefined) setClause.categorias_llamadas = data.categorias_llamadas;
   if (data.categorias_citas !== undefined) setClause.categorias_citas = data.categorias_citas;
   if (data.categorias_chats !== undefined) setClause.categorias_chats = data.categorias_chats;
+  if (data.categorias_leads !== undefined) setClause.categorias_leads = data.categorias_leads;
   if (data.exclusiones_coach !== undefined) setClause.exclusiones_coach = data.exclusiones_coach;
 
   // Handle chat_analisis_hora — update metas_cuenta table

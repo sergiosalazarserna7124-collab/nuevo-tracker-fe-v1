@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import PageHeader from "@/components/dashboard/PageHeader";
 import HelpTooltip from "@/components/dashboard/HelpTooltip";
+import DocumentacionContent from "@/components/dashboard/DocumentacionContent";
 import { UserPlus, Shield, Crown, Users, X, Mail, Pencil, Loader2, Plus, Trash2, Upload, Download, CheckCircle2, Sparkles, MessageSquare, Phone, Video, Building2, ChevronDown, ChevronUp, GitBranch, AlertTriangle } from "lucide-react";
 import { useUserFilter } from "@/contexts/UserFilterContext";
 import { canManageUsers, canManageRoles, canManageSystem } from "@/lib/permisos";
@@ -176,6 +177,8 @@ export default function ConfiguracionPage() {
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [formUser, setFormUser] = useState({ name: "", email: "", fathom: "", rol: "usuario", tipo_usuario: "analista" as TipoUsuario });
   const [error, setError] = useState("");
+  const [fathomEdit, setFathomEdit] = useState<Record<number, string>>({});
+  const [fathomSaving, setFathomSaving] = useState<number | null>(null);
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkFile, setBulkFile] = useState<File | null>(null);
@@ -566,7 +569,8 @@ export default function ConfiguracionPage() {
               <span className="font-semibold text-white">AutoKPI se sincroniza automáticamente con los usuarios de tu GHL.</span>{" "}
               Aquí no se puede agregar, editar ni eliminar usuarios: agrega o quita usuarios en
               GoHighLevel y aparecerán solos. Los admin de GHL tienen acceso total; los demás solo
-              ven sus propios datos.
+              ven sus propios datos. Lo único configurable aquí es la <span className="text-white font-medium">llave de Fathom</span> de
+              cada usuario — sin ella no se trackean sus citas grabadas.
             </div>
             {loading ? (
               <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
@@ -583,6 +587,44 @@ export default function ConfiguracionPage() {
                         {u.tipo_usuario === "enfoque" && <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-medium uppercase">Enfoque</span>}
                       </div>
                       <span className="text-gray-500 text-xs block">{u.email}</span>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <input
+                          type="text"
+                          value={fathomEdit[u.id] ?? u.fathom ?? ""}
+                          onChange={(e) => setFathomEdit((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                          placeholder="Llave API de Fathom (para trackear sus citas grabadas)"
+                          className="w-72 max-w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1 text-xs text-white placeholder-gray-500 font-mono focus:ring-2 focus:ring-accent-cyan/40"
+                        />
+                        <button
+                          type="button"
+                          disabled={fathomSaving === u.id || (fathomEdit[u.id] ?? u.fathom ?? "") === (u.fathom ?? "")}
+                          onClick={async () => {
+                            setFathomSaving(u.id);
+                            try {
+                              const res = await fetch("/api/data/usuarios", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: u.id, fathom: fathomEdit[u.id] ?? "" }),
+                              });
+                              const d = await res.json().catch(() => ({}));
+                              if (!res.ok) toast.error("No se pudo guardar la llave de Fathom");
+                              else if (d.fathomWarning) toast.warning("Llave guardada, pero Fathom no registró el webhook", { description: d.fathomWarning });
+                              else toast.success("Llave de Fathom guardada");
+                              await loadUsers();
+                              setFathomEdit((prev) => { const n = { ...prev }; delete n[u.id]; return n; });
+                            } catch { toast.error("Error de red guardando la llave"); }
+                            setFathomSaving(null);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40 text-[11px] font-semibold hover:bg-accent-cyan/30 disabled:opacity-40"
+                        >
+                          {fathomSaving === u.id ? "Guardando…" : "Guardar llave"}
+                        </button>
+                        {u.fathom?.trim() && (
+                          <span className={`text-[10px] ${u.id_webhook_fathom ? "text-accent-green" : "text-amber-400"}`}>
+                            {u.id_webhook_fathom ? "✓ webhook Fathom activo" : "⚠ llave sin webhook"}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${u.rol === "superadmin" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-surface-600 text-gray-300 border-surface-500"}`}>
@@ -596,6 +638,14 @@ export default function ConfiguracionPage() {
           </section>
         )}
 
+        {/* ── Documentación del sistema ── */}
+        <section className="rounded-xl border border-surface-500 bg-surface-800/80 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-accent-purple" />
+            <h2 className="text-sm font-semibold text-white">Documentación del sistema</h2>
+          </div>
+          <DocumentacionContent />
+        </section>
       </div>
 
       {/* ── Modals ── */}

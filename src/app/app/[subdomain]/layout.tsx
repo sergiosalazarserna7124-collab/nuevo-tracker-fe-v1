@@ -168,7 +168,7 @@ const NAV_ITEMS: { path: string; navKey: NavKey; label: string; icon: React.Elem
   { path: "/asignacion", navKey: "asignacion", label: "Asignación de leads", icon: UserPlus, beta: true },
   // "Reportes" oculto por decisión de producto (2026-08) — se reescribirá completo.
   { path: "/system", navKey: "sistema", label: "Control del sistema", icon: Target },
-  { path: "/documentacion", navKey: "documentacion", label: "Documentación", icon: BookOpen },
+  // "Documentación" vive dentro de Configuración (2026-08); la ruta sigue activa para links viejos.
   { path: "/configuracion", navKey: "configuracion", label: "Configuración", icon: UserCog },
   { path: "/accesos", navKey: "accesos", label: "Registro de accesos", icon: LogIn },
 ];

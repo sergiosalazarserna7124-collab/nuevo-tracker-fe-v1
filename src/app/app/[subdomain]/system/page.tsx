@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useT } from '@/contexts/LocaleContext';
 import type { Locale } from '@/lib/i18n';
 import PageHeader from '@/components/dashboard/PageHeader';
-import { ChevronRight, ChevronLeft, Phone, Video, Tag, BarChart3, Building2, Save, Target, Loader2, Key, GitBranch, MessageSquare, Database, Plus, Trash2, GripVertical, ArrowRight, Pencil, HelpCircle, AlertTriangle, Sparkles, ShieldCheck, Info, CheckCircle2, Search, ListFilter, Users } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, Phone, Video, Tag, BarChart3, Building2, Save, Target, Loader2, Key, GitBranch, MessageSquare, Database, Plus, Trash2, GripVertical, ArrowRight, Pencil, HelpCircle, AlertTriangle, Sparkles, ShieldCheck, Info, CheckCircle2, Search, ListFilter, Users } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -28,7 +28,7 @@ import { getMetricasQueDependenDe, DEFAULT_METRICAS_CONFIG, DEFAULT_EMBUDO_CONFI
 import { HORARIO_LABORAL_DEFAULT, type HorarioLaboral } from '@/lib/business-hours';
 import MetricaEditSheet from '@/components/dashboard/MetricaEditSheet';
 import DashboardsManager from '@/components/dashboard/DashboardsManager';
-import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, CategoriaCita, CategoriaChat, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
+import type { MetricaConfig, MetricaManualEntry, CategoriaLlamada, CategoriaCita, CategoriaChat, CategoriaLead, ReglaEtapaLead, ExclusionesCoach, ReglaExclusionCoach } from '@/lib/db/schema';
 import ChatRecoverySection from '@/features/quick-triggers/chat-recovery/ChatRecoverySection';
 import HelpTooltip from '@/components/dashboard/HelpTooltip';
 import PremiumGate from '@/components/dashboard/PremiumGate';
@@ -181,6 +181,7 @@ interface SystemConfig {
   categorias_llamadas?: CategoriaLlamada[];
   categorias_citas?: CategoriaCita[];
   categorias_chats?: CategoriaChat[];
+  categorias_leads?: CategoriaLead[];
   secciones_ocultas?: string[];
   ranking_metrica_base?: string | null;
 }
@@ -383,6 +384,16 @@ export default function SystemPage() {
   const [cchEtiqueta, setCchEtiqueta] = useState('');
   const [cchPrompt, setCchPrompt] = useState('');
   const [cchEditId, setCchEditId] = useState<string | null>(null);
+  // Categorías de LEADS unificadas (etapa del lead)
+  const [categoriasLeads, setCategoriasLeads] = useState<CategoriaLead[]>([]);
+  const [clNombre, setClNombre] = useState('');
+  const [clEtiqueta, setClEtiqueta] = useState('');
+  const [clPrompt, setClPrompt] = useState('');
+  const [clPromptResumen, setClPromptResumen] = useState('');
+  const [clReglas, setClReglas] = useState<ReglaEtapaLead[]>([]);
+  const [clReglaTag, setClReglaTag] = useState('');
+  const [clReglaCond, setClReglaCond] = useState('');
+  const [clEditId, setClEditId] = useState<string | null>(null);
 
   // Coach de ventas state
   interface SeccionGuion {
@@ -504,6 +515,7 @@ export default function SystemPage() {
         setCategoriasLlamadas(Array.isArray(cfg.categorias_llamadas) ? cfg.categorias_llamadas : []);
         setCategoriasCitas(Array.isArray(cfg.categorias_citas) ? cfg.categorias_citas : []);
         setCategoriasChats(Array.isArray(cfg.categorias_chats) ? cfg.categorias_chats : []);
+        setCategoriasLeads(Array.isArray(cfg.categorias_leads) ? cfg.categorias_leads : []);
         setGhlLocationId((cfg as unknown as { ghl_location_id?: string }).ghl_location_id ?? '');
         if (cfg.horario_laboral && Array.isArray(cfg.horario_laboral.dias)) {
           setHorarioLaboral(cfg.horario_laboral);
@@ -744,6 +756,7 @@ export default function SystemPage() {
         categorias_llamadas: categoriasLlamadas,
         categorias_citas: categoriasCitas,
         categorias_chats: categoriasChats,
+        categorias_leads: categoriasLeads,
         secciones_ocultas: seccionesOcultas,
         ranking_metrica_base: rankingMetricaBase,
         horario_laboral: horarioLaboral,
@@ -970,601 +983,146 @@ export default function SystemPage() {
               <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
                 <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40"><Sparkles className="w-5 h-5 text-accent-purple" /></div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Prompts de evaluación</h3>
-                  <p className="text-sm text-gray-400">Cómo evalúa la IA cada canal: chats, llamadas telefónicas y citas.</p>
+                  <h3 className="text-lg font-semibold text-white">Categorías de leads</h3>
+                  <p className="text-sm text-gray-400">Todo se evalúa en conjunto: la etiqueta del contacto define su etapa, y chats, llamadas y citas se evalúan con el prompt de esa etapa.</p>
                 </div>
               </div>
-              <div className="flex gap-2">
-                {([['chats', 'Chats', MessageSquare], ['llamadas', 'Llamadas', Phone], ['citas', 'Citas', Video]] as const).map(([id, label, IconTab]) => (
-                  <button key={id} type="button" onClick={() => setEvalSeccion(id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${evalSeccion === id ? 'bg-accent-purple/20 text-accent-purple border-accent-purple/50' : 'bg-surface-700/60 text-gray-400 border-surface-500 hover:text-white'}`}>
-                    <IconTab className="w-4 h-4" /> {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {currentStep === 1 && evalSeccion === 'chats' && (
-            <div className="space-y-4">
-              {/* ── Transferir a un humano ── */}
-              <div className="rounded-xl border border-accent-cyan/30 bg-accent-cyan/5 p-4 space-y-4">
+              {/* ── Transferir a un humano (speed to lead en chat) ── */}
+              <div className="rounded-xl border border-accent-cyan/30 bg-accent-cyan/5 p-4 space-y-3">
                 <h4 className="text-sm font-semibold text-accent-cyan">⚡ Transferir a un humano</h4>
-                <p className="text-sm text-gray-400">
-                  Se usa para medir el <span className="text-white font-medium">speed to lead en chat</span>: saber si
-                  contactan o no a cada lead, y cuánto tardan. Si el primero que responde es un bot, el tiempo real se
-                  mide cuando el asesor humano toma la conversación con el emoji.
-                </p>
+                <p className="text-sm text-gray-400">Se usa para medir el speed to lead en chat: saber si contactan o no a cada lead. Si responde primero un bot, el tiempo real se mide cuando el asesor toma el chat con el emoji.</p>
                 <div className="flex items-start gap-3">
-                  <div className="flex-1 space-y-1">
-                    <span className="text-sm text-white font-medium">¿Tu equipo usa un chatbot antes de que atienda el asesor?</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setChatConfig((c) => ({ ...c, tiene_chatbot: !c.tiene_chatbot }))}
-                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${chatConfig.tiene_chatbot ? 'bg-accent-cyan' : 'bg-surface-500'}`}
-                  >
+                  <span className="flex-1 text-sm text-white font-medium">¿Tu equipo usa un chatbot antes de que atienda el asesor?</span>
+                  <button type="button" onClick={() => setChatConfig((c) => ({ ...c, tiene_chatbot: !c.tiene_chatbot }))}
+                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${chatConfig.tiene_chatbot ? 'bg-accent-cyan' : 'bg-surface-500'}`}>
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatConfig.tiene_chatbot ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
                 {chatConfig.tiene_chatbot && (
                   <div className="rounded-lg bg-surface-700/60 border border-surface-500 p-3 space-y-1.5">
                     <label className="text-xs font-medium text-gray-300 block">Emoji que usa el asesor para tomar el chat</label>
-                    <p className="text-[11px] text-gray-500">El asesor envía este emoji para tomar la conversación del chatbot. Ej: ⚡ o 👋</p>
-                    <input
-                      type="text"
-                      value={chatConfig.emoji_toma_atencion}
+                    <input type="text" value={chatConfig.emoji_toma_atencion}
                       onChange={(e) => setChatConfig((c) => ({ ...c, emoji_toma_atencion: e.target.value }))}
-                      placeholder="ej: ⚡ o 👋"
-                      className="w-32 rounded-lg bg-surface-600 border border-surface-500 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40"
-                      maxLength={8}
-                    />
-                    {chatConfig.emoji_toma_atencion && (
-                      <p className="text-[11px] text-gray-500">Emoji activo: <span className="text-2xl">{chatConfig.emoji_toma_atencion}</span></p>
-                    )}
+                      placeholder="ej: ⚡ o 👋" maxLength={8}
+                      className="w-32 rounded-lg bg-surface-600 border border-surface-500 px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-cyan/40" />
                   </div>
                 )}
               </div>
 
-              {/* ── Categorías de chats ── */}
-              <div className="rounded-xl border border-accent-green/30 bg-accent-green/5 p-4 space-y-3">
-                <h4 className="text-sm font-semibold text-accent-green">💬 Categorías de chats</h4>
-                <p className="text-sm text-gray-400">
-                  Define tus propias categorías y la IA clasificará cada conversación en una de ellas,
-                  <span className="text-white font-medium"> una vez al día</span> (análisis nocturno automático).
-                </p>
-                {!chatCatsLoaded ? (
-                  <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 text-gray-400 animate-spin" /></div>
-                ) : (
-                  <>
-                    {chatCats.length > 0 && (
-                      <ul className="space-y-2">
-                        {chatCats.map((cc) => (
-                          <li key={cc.slug} className="flex items-start justify-between gap-3 rounded-lg bg-surface-700/70 border border-surface-500 px-3 py-2">
-                            <div className="min-w-0">
-                              <p className="text-sm text-white font-medium">{cc.label}</p>
-                              <p className="text-[11px] text-gray-500">{cc.descripcion}</p>
-                            </div>
-                            <button type="button" disabled={chatCatsSaving} onClick={() => saveChatCats(chatCats.filter((c) => c.slug !== cc.slug))}
-                              className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 shrink-0" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <div className="rounded-lg bg-surface-700/50 border border-surface-500 p-3 space-y-2">
-                      <input type="text" value={chatCatLabel} onChange={(e) => setChatCatLabel(e.target.value)} placeholder="Nombre de la categoría (ej: Interesado en compra)"
-                        className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
-                      <textarea value={chatCatDesc} onChange={(e) => setChatCatDesc(e.target.value)} placeholder="Descripción: cuándo un chat pertenece a esta categoría..."
-                        className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-green/40" />
-                      <button type="button" disabled={chatCatsSaving} onClick={() => {
-                        if (!chatCatLabel.trim()) { toast.error('El nombre es obligatorio'); return; }
-                        const slug = chatCatLabel.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-                        if (chatCats.some((c) => c.slug === slug)) { toast.error('Ya existe una categoría con ese nombre'); return; }
-                        saveChatCats([...chatCats, { slug, label: chatCatLabel.trim(), descripcion: chatCatDesc.trim() }]);
-                        setChatCatLabel(''); setChatCatDesc('');
-                      }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-green/20 text-accent-green border border-accent-green/40 text-xs font-semibold hover:bg-accent-green/30 disabled:opacity-50">
-                        <Plus className="w-3.5 h-3.5" /> Añadir categoría de chat
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* ── Prompts por etiqueta (chats) ── */}
-              <div className="rounded-xl border border-accent-purple/30 bg-accent-purple/5 p-4 space-y-3">
-                <h4 className="text-sm font-semibold text-accent-purple">🏷️ Prompts por etiqueta (chats)</h4>
-                <p className="text-sm text-gray-400">
-                  Cada etapa del cliente se analiza distinto: ancla una categoría a una etiqueta de GHL y los chats
-                  de los contactos con esa etiqueta se analizarán con el prompt de la categoría.
-                </p>
-                {categoriasChats.length > 0 && (
-                  <ul className="space-y-2">
-                    {categoriasChats.map((cc) => (
-                      <li key={cc.id} className="flex items-start justify-between gap-3 rounded-lg bg-surface-700/70 border border-surface-500 px-3 py-2">
+              {/* ── Lista de etapas ── */}
+              {categoriasLeads.length > 0 && (
+                <ul className="space-y-2">
+                  {categoriasLeads.map((cl) => (
+                    <li key={cl.id} className="rounded-xl bg-surface-700/70 border border-surface-500 px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm text-white font-medium">{cc.nombre} <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-mono">{cc.etiqueta}</span></p>
-                          <p className="text-[11px] text-gray-500 truncate max-w-xl">{cc.prompt}</p>
+                          <p className="text-sm text-white font-semibold">{cl.nombre}
+                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-mono">{cl.etiqueta}</span>
+                            {(cl.reglas_etiquetas?.length ?? 0) > 0 && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent-amber/20 text-accent-amber border border-accent-amber/30">{cl.reglas_etiquetas!.length} regla{cl.reglas_etiquetas!.length !== 1 ? 's' : ''}</span>}
+                          </p>
+                          <p className="text-[11px] text-gray-500 truncate max-w-2xl mt-0.5">{cl.prompt}</p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          <button type="button" onClick={() => { setCchEditId(cc.id); setCchNombre(cc.nombre); setCchEtiqueta(cc.etiqueta); setCchPrompt(cc.prompt); }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
-                          <button type="button" onClick={() => setCategoriasChats((prev) => prev.filter((c) => c.id !== cc.id))} className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => {
+                            setClEditId(cl.id); setClNombre(cl.nombre); setClEtiqueta(cl.etiqueta);
+                            setClPrompt(cl.prompt); setClPromptResumen(cl.prompt_resumen ?? '');
+                            setClReglas(cl.reglas_etiquetas ?? []);
+                          }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => setCategoriasLeads((prev) => prev.filter((c) => c.id !== cl.id))}
+                            className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="rounded-lg bg-surface-700/50 border border-surface-500 p-3 space-y-2">
-                  <div className="grid md:grid-cols-2 gap-2">
-                    <input type="text" value={cchNombre} onChange={(e) => setCchNombre(e.target.value)} placeholder="Nombre (ej: Lead nuevo)"
-                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                    {!ghlEtiquetasOpen ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
-                          {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
-                        </button>
-                        {cchEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{cchEtiqueta}</span>}
-                        
                       </div>
-                    ) : ghlEtiquetas.length > 0 ? (
-                      <select
-                        value={ghlEtiquetas.includes(cchEtiqueta.trim().toLowerCase()) ? cchEtiqueta.trim().toLowerCase() : ''}
-                        onChange={(e) => setCchEtiqueta(e.target.value)}
-                        className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
-                        <option value="">Selecciona la etiqueta GHL…</option>
-                        {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
-                        <option value="" disabled>¿Otra? Créala primero en GHL</option>
-                      </select>
-                    ) : (
-                      <p className="text-[11px] text-gray-500">No se encontraron etiquetas. Créala primero en GHL y vuelve a dar “Elegir etiqueta”.</p>
-                    )}
-                  </div>
-                  <textarea value={cchPrompt} onChange={(e) => setCchPrompt(e.target.value)} placeholder="Prompt: cómo analizar los chats de este tipo de contacto..."
-                    className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[70px] focus:ring-2 focus:ring-accent-purple/40" />
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => {
-                      if (!cchNombre.trim() || !cchEtiqueta.trim() || !cchPrompt.trim()) { toast.error('Nombre, etiqueta y prompt son obligatorios'); return; }
-                      if (cchEditId) {
-                        setCategoriasChats((prev) => prev.map((c) => c.id === cchEditId ? { ...c, nombre: cchNombre.trim(), etiqueta: cchEtiqueta.trim(), prompt: cchPrompt.trim() } : c));
-                      } else {
-                        setCategoriasChats((prev) => [...prev, { id: `chat-${Date.now()}`, nombre: cchNombre.trim(), etiqueta: cchEtiqueta.trim(), prompt: cchPrompt.trim() }]);
-                      }
-                      setCchEditId(null); setCchNombre(''); setCchEtiqueta(''); setCchPrompt('');
-                    }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30">
-                      <Plus className="w-3.5 h-3.5" /> {cchEditId ? 'Guardar cambios' : 'Añadir categoría'}
-                    </button>
-                    {cchEditId && (
-                      <button type="button" onClick={() => { setCchEditId(null); setCchNombre(''); setCchEtiqueta(''); setCchPrompt(''); }} className="text-xs text-gray-500 hover:text-gray-300">Cancelar</button>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-gray-500">Recuerda dar “Guardar” abajo para aplicar los cambios.</p>
-                </div>
-              </div>
-            </div>
-          )}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-          {currentStep === 1 && evalSeccion === 'citas' && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-purple/30">
-                <div className="rounded-lg p-2 bg-accent-purple/20 border border-accent-purple/40"><Video className="w-5 h-5 text-accent-purple" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Evaluación de citas</h3>
-                  <p className="text-sm text-gray-400">Prompt / rúbrica para evaluar citas (criterios, puntajes).</p>
-                </div>
-              </div>
-              <textarea value={promptEvaluacion} onChange={(e) => setPromptEvaluacion(e.target.value)}
-                className="w-full rounded-lg bg-surface-700/80 border border-surface-500 p-3 text-sm text-white placeholder-gray-500 min-h-[180px] focus:ring-2 focus:ring-accent-purple/50 focus:border-accent-purple/50 transition-colors"
-                placeholder="Evalúa la cita según..." />
-              <p className="text-[11px] text-gray-500 mt-1">Se recomienda ser lo más completo posible para que la IA entienda tu negocio de la mejor manera.</p>
-
-              {/* ── Sección: Notas en GHL después de cita ── */}
-              <div className="rounded-xl border border-accent-amber/30 bg-accent-amber/5 p-4 space-y-4">
-                <h4 className="text-sm font-semibold text-accent-amber flex items-center gap-2">
-                  📝 Notas en GHL después de cita
-                </h4>
-                <p className="text-sm text-gray-400">
-                  Cuando Fathom envía una grabación, el sistema puede guardar notas automáticamente en el contacto de GHL.
-                  Elige qué quieres guardar — cada nota consume recursos del servidor y puede fallar si la transcripción es muy larga.
-                </p>
-
-                {/* Toggle: Nota IA */}
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 space-y-1">
-                    <span className="text-sm text-white font-medium">Nota de análisis IA</span>
-                    <p className="text-[11px] text-gray-500">
-                      Guarda en GHL: categoría del lead, etiquetas detectadas y resumen del análisis. Breve y siempre dentro del límite.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setGhlNotasIa((v) => !v)}
-                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${ghlNotasIa ? 'bg-accent-green' : 'bg-surface-500'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasIa ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-
-              </div>
-
-              {/* ── Categorías de citas ancladas a etiqueta GHL ── */}
+              {/* ── Formulario de etapa ── */}
               <div className="rounded-xl border border-accent-purple/30 bg-accent-purple/5 p-4 space-y-3">
-                <h4 className="text-sm font-semibold text-accent-purple">🏷️ Categorías de citas (por etiqueta del contacto)</h4>
-                <p className="text-sm text-gray-400">
-                  No todas las citas se evalúan igual: crea una categoría por tipo de contacto y ánclala a una
-                  etiqueta de GHL (ej. <span className="font-mono text-gray-300">lead nuevo</span>, <span className="font-mono text-gray-300">lead agendado</span>).
-                  Si el contacto tiene esa etiqueta, su cita se evalúa con el prompt de la categoría en vez del prompt general de arriba.
-                </p>
-                {categoriasCitas.length > 0 && (
-                  <ul className="space-y-2">
-                    {categoriasCitas.map((cc) => (
-                      <li key={cc.id} className="flex items-start justify-between gap-3 rounded-lg bg-surface-700/70 border border-surface-500 px-3 py-2">
-                        <div className="min-w-0">
-                          <p className="text-sm text-white font-medium">{cc.nombre} <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-accent-purple/20 text-accent-purple border border-accent-purple/30 font-mono">{cc.etiqueta}</span></p>
-                          <p className="text-[11px] text-gray-500 truncate max-w-xl">{cc.prompt}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button type="button" onClick={() => { setCcEditId(cc.id); setCcNombre(cc.nombre); setCcEtiqueta(cc.etiqueta); setCcPrompt(cc.prompt); }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
-                          <button type="button" onClick={() => setCategoriasCitas((prev) => prev.filter((c) => c.id !== cc.id))} className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <h4 className="text-sm font-semibold text-accent-purple">{clEditId ? '✏️ Editar etapa' : '➕ Nueva etapa del lead'}</h4>
+                <div className="grid md:grid-cols-2 gap-2">
+                  <input type="text" value={clNombre} onChange={(e) => setClNombre(e.target.value)} placeholder="Nombre de la etapa (ej: Lead nuevo)"
+                    className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
+                  {!ghlEtiquetasOpen ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
+                        {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
+                      </button>
+                      {clEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{clEtiqueta}</span>}
+                    </div>
+                  ) : ghlEtiquetas.length > 0 ? (
+                    <select value={ghlEtiquetas.includes(clEtiqueta.trim().toLowerCase()) ? clEtiqueta.trim().toLowerCase() : ''}
+                      onChange={(e) => setClEtiqueta(e.target.value)}
+                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
+                      <option value="">Selecciona la etiqueta GHL…</option>
+                      {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
+                      <option value="" disabled>¿Otra? Créala primero en GHL</option>
+                    </select>
+                  ) : (
+                    <p className="text-[11px] text-gray-500">No se encontraron etiquetas. Créala primero en GHL y vuelve a dar “Elegir etiqueta”.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-accent-purple block mb-1">Prompt de evaluación — ¿qué debe pasar en esta etapa?</label>
+                  <textarea value={clPrompt} onChange={(e) => setClPrompt(e.target.value)}
+                    placeholder="Ej: En esta etapa deben enviarse mensajes de presentación; si se llama y no contesta, mandar seguimiento (mínimo 3 intentos). El objetivo es agendar un zoom. Evalúa cada chat, llamada o cita según esto..."
+                    className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[90px] focus:ring-2 focus:ring-accent-purple/40" />
+                  <p className="text-[10px] text-gray-500 mt-0.5">Aplica a TODAS las interacciones del lead en esta etapa: chats, llamadas y citas.</p>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-accent-purple block mb-1">Prompt de resumen (opcional)</label>
+                  <textarea value={clPromptResumen} onChange={(e) => setClPromptResumen(e.target.value)}
+                    placeholder="Cómo resumir las interacciones de esta etapa en la nota de GHL. Vacío = resumen simple por defecto."
+                    className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-purple/40" />
+                </div>
+
+                {/* Reglas de etiquetas de ESTA etapa */}
                 <div className="rounded-lg bg-surface-700/50 border border-surface-500 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-accent-amber">🏷️ Reglas de etiquetas de esta etapa</p>
+                  <p className="text-[11px] text-gray-500">Aplican SOLO cuando el lead está en esta etapa. Si la condición se cumple en una interacción, se pone la etiqueta.</p>
+                  {clReglas.length > 0 && (
+                    <ul className="space-y-1">
+                      {clReglas.map((r) => (
+                        <li key={r.id} className="flex items-center justify-between gap-2 text-xs bg-surface-600/60 rounded px-2 py-1.5">
+                          <span className="text-gray-300"><span className="font-mono text-accent-amber">{r.tag}</span> — {r.condition}</span>
+                          <button type="button" onClick={() => setClReglas((prev) => prev.filter((x) => x.id !== r.id))}
+                            className="text-gray-500 hover:text-red-400 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="grid md:grid-cols-2 gap-2">
-                    <input type="text" value={ccNombre} onChange={(e) => setCcNombre(e.target.value)} placeholder="Nombre (ej: Lead nuevo)"
-                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                    {!ghlEtiquetasOpen ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
-                          {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
-                        </button>
-                        {ccEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{ccEtiqueta}</span>}
-                        
-                      </div>
-                    ) : ghlEtiquetas.length > 0 ? (
-                      <select
-                        value={ghlEtiquetas.includes(ccEtiqueta.trim().toLowerCase()) ? ccEtiqueta.trim().toLowerCase() : ''}
-                        onChange={(e) => setCcEtiqueta(e.target.value)}
-                        className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
-                        <option value="">Selecciona la etiqueta GHL…</option>
-                        {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
-                        <option value="" disabled>¿Otra? Créala primero en GHL</option>
-                      </select>
-                    ) : (
-                      <p className="text-[11px] text-gray-500">No se encontraron etiquetas. Créala primero en GHL y vuelve a dar “Elegir etiqueta”.</p>
-                    )}
+                    <input type="text" value={clReglaTag} onChange={(e) => setClReglaTag(e.target.value)} placeholder="Etiqueta a poner (ej: pidio_info)"
+                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white font-mono focus:ring-2 focus:ring-accent-amber/40" />
+                    <input type="text" value={clReglaCond} onChange={(e) => setClReglaCond(e.target.value)} placeholder="Condición (ej: el lead pidió información de precios)"
+                      className="rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-xs text-white focus:ring-2 focus:ring-accent-amber/40" />
                   </div>
-                  <textarea value={ccPrompt} onChange={(e) => setCcPrompt(e.target.value)} placeholder="Prompt: cómo evaluar las citas de este tipo de contacto..."
-                    className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[70px] focus:ring-2 focus:ring-accent-purple/40" />
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => {
-                      if (!ccNombre.trim() || !ccEtiqueta.trim() || !ccPrompt.trim()) { toast.error('Nombre, etiqueta y prompt son obligatorios'); return; }
-                      if (ccEditId) {
-                        setCategoriasCitas((prev) => prev.map((c) => c.id === ccEditId ? { ...c, nombre: ccNombre.trim(), etiqueta: ccEtiqueta.trim(), prompt: ccPrompt.trim() } : c));
-                      } else {
-                        setCategoriasCitas((prev) => [...prev, { id: `cita-${Date.now()}`, nombre: ccNombre.trim(), etiqueta: ccEtiqueta.trim(), prompt: ccPrompt.trim() }]);
-                      }
-                      setCcEditId(null); setCcNombre(''); setCcEtiqueta(''); setCcPrompt('');
-                    }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30">
-                      <Plus className="w-3.5 h-3.5" /> {ccEditId ? 'Guardar cambios' : 'Añadir categoría'}
-                    </button>
-                    {ccEditId && (
-                      <button type="button" onClick={() => { setCcEditId(null); setCcNombre(''); setCcEtiqueta(''); setCcPrompt(''); }} className="text-xs text-gray-500 hover:text-gray-300">Cancelar</button>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-gray-500">Recuerda dar “Guardar” abajo para aplicar los cambios.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 1 && evalSeccion === 'llamadas' && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-accent-cyan/30">
-                <div className="rounded-lg p-2 bg-accent-cyan/20 border border-accent-cyan/40"><Phone className="w-5 h-5 text-accent-cyan" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Llamadas telefónicas</h3>
-                  <p className="text-sm text-gray-400">Configura el origen de llamadas y el prompt de evaluación IA.</p>
-                </div>
-              </div>
-
-              {/* ── Info IA llamadas ─────────────────────────────────── */}
-              <div className="rounded-xl p-4 bg-accent-cyan/5 border border-accent-cyan/20 flex items-start gap-3">
-                <div className="text-accent-cyan text-lg mt-0.5">✅</div>
-                <div>
-                  <p className="text-sm font-medium text-white">IA activa en todas las llamadas</p>
-                  <p className="text-[11px] text-gray-400 mt-1">Cada llamada se transcribe y analiza automáticamente. El sistema clasifica el resultado (interesado, programado, seguimiento, etc.) y lo muestra en el panel de rendimiento.</p>
-                </div>
-              </div>
-
-              {/* ── Prompt de evaluación ────────────────── */}
-              <textarea value={promptLlamadas} onChange={(e) => setPromptLlamadas(e.target.value)}
-                className="w-full rounded-lg bg-surface-700/80 border border-surface-500 p-3 text-sm text-white placeholder-gray-500 min-h-[180px] focus:ring-2 focus:ring-accent-cyan/50 focus:border-accent-cyan/50 transition-colors"
-                placeholder="Evalúa la llamada telefónica según..." />
-              <p className="text-[11px] text-gray-500 mt-1">Se recomienda ser lo más completo posible para que la IA entienda tu negocio de la mejor manera.</p>
-
-              {/* ── Sección: Notas en GHL después de la llamada ── */}
-              <div className="rounded-xl border border-accent-amber/30 bg-accent-amber/5 p-4 space-y-4 mt-4">
-                <h4 className="text-sm font-semibold text-accent-amber flex items-center gap-2">
-                  📝 Notas en GHL después de la llamada
-                </h4>
-                <p className="text-sm text-gray-400">
-                  Cuando llega una llamada, el sistema puede guardar notas automáticamente en el contacto de GHL. Apaga lo que el cliente no quiera.
-                </p>
-                {/* Toggle: Análisis IA */}
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-white font-medium">Nota con análisis IA</span>
-                  <button
-                    type="button"
-                    onClick={() => setGhlNotasLlamadasIa((v) => !v)}
-                    className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${ghlNotasLlamadasIa ? 'bg-accent-green' : 'bg-surface-500'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${ghlNotasLlamadasIa ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* ── Categorías de llamada ── */}
-              <div className="mt-6 pt-5 border-t border-surface-500">
-                <div className="flex items-center gap-2 pb-3">
-                  <div className="rounded-lg p-1.5 bg-accent-purple/20 border border-accent-purple/40"><Tag className="w-4 h-4 text-accent-purple" /></div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="text-base font-semibold text-white">Categorías de llamada</h4>
-                      <HelpTooltip
-                        titulo="¿Qué son las categorías de llamada?"
-                        contenido={`No todas las llamadas se evalúan igual: una llamada de descubrimiento no es lo mismo que una de perfilamiento, seguimiento o cierre.\n\nAquí creas cada categoría con su PROPIO prompt de evaluación y sus temas. Luego, en el Paso 4 (Reglas de etiquetas), usas la acción "Asignar categoría" para que cada llamada se enrute a la categoría correcta y se analice con el prompt adecuado.`}
-                        comoProbar="Crea una categoría (ej. 'Perfilamiento'), escribe su prompt y sus temas, y guarda. Ve al Paso 4, crea una regla con la condición que identifique ese tipo de llamada y elige la acción 'Asignar categoría'. Cuando entre una llamada que cumpla la condición, se evaluará con el prompt de esa categoría."
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400">Crea categorías con un prompt de evaluación propio y temas específicos. Para que una categoría se use, crea una regla en el Paso 4 con la acción &quot;Asignar categoría&quot;.</p>
-                  </div>
-                </div>
-
-                {categoriasLlamadas.length === 0 && catEditId === null && (
-                  <div className="rounded-xl p-5 border border-dashed border-surface-500 bg-surface-800/50 text-center space-y-3">
-                    <div className="flex justify-center"><Tag className="w-8 h-8 text-gray-600" /></div>
-                    <p className="text-sm text-gray-400">Aún no hay categorías de llamada.</p>
-                    <p className="text-xs text-gray-500">Las categorías permiten evaluar cada tipo de llamada con su propio prompt. Puedes crear las tuyas o cargar plantillas de ejemplo.</p>
-                    <div className="flex gap-2 justify-center flex-wrap">
-                      <button type="button" onClick={() => {
-                        setCatEditId(crypto.randomUUID());
-                        setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); setCatEtiqueta('');
-                      }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-accent-purple/20 text-accent-purple border border-accent-purple/40 hover:bg-accent-purple/30 transition-all">
-                        <Plus className="w-4 h-4" /> Crear categoría
-                      </button>
-                      <button type="button" onClick={() => {
-                        setCategoriasLlamadas([
-                          {
-                            id: crypto.randomUUID(),
-                            nombre: 'Perfilamiento',
-                            definicion: 'Primera llamada para conocer al prospecto: necesidad, presupuesto, zona de interés y plazo de compra.',
-                            temas: ['presupuesto', 'ubicación', 'plazo', 'necesidad', 'primera llamada'],
-                            prompt: '¿El asesor preguntó presupuesto? ¿Identificó la necesidad principal? ¿Preguntó zona de interés y plazo? ¿Agendó siguiente paso?',
-                          },
-                          {
-                            id: crypto.randomUUID(),
-                            nombre: 'Seguimiento',
-                            definicion: 'Llamada de seguimiento a un prospecto ya perfilado. Se busca avanzar al cierre o resolver objeciones.',
-                            temas: ['seguimiento', 'objeciones', 'avance', 'propuesta', 'cotización'],
-                            prompt: '¿El asesor retomó la conversación anterior? ¿Abordó objeciones? ¿Presentó opciones concretas? ¿Definió siguiente acción?',
-                          },
-                          {
-                            id: crypto.randomUUID(),
-                            nombre: 'Agendamiento / Cierre',
-                            definicion: 'Llamada donde se busca agendar visita o cerrar la venta. El prospecto ya está calificado.',
-                            temas: ['agendar', 'visita', 'cierre', 'contrato', 'apartado', 'firma'],
-                            prompt: '¿Se agendó visita o cita de cierre? ¿Se habló de proceso de compra/contrato? ¿Hubo compromiso concreto del prospecto?',
-                          },
-                        ]);
-                        toast.success('3 categorías de ejemplo cargadas — edítalas a tu medida');
-                      }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-surface-700 text-gray-300 border border-surface-500 hover:bg-surface-600 transition-all">
-                        <Sparkles className="w-4 h-4" /> Cargar categorías de ejemplo
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {categoriasLlamadas.length > 0 && (
-                  <ul className="space-y-2 mb-3">
-                    {categoriasLlamadas.map((cat) => {
-                      const tieneRegla = tagRules.some((r) =>
-                        r.acciones.some((a) => a.tipo === 'asignar_categoria' && a.categoria_id === cat.id)
-                      );
-                      return (
-                      <li key={cat.id} className="rounded-xl p-3 border-l-4 border-accent-purple/60 bg-gradient-to-b from-surface-700/90 to-surface-800/90 border border-surface-500 flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{cat.nombre}</p>
-                          {cat.definicion && <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{cat.definicion}</p>}
-                          {cat.temas.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {cat.temas.map((t, i) => (
-                                <span key={i} className="px-1.5 py-0.5 rounded bg-accent-purple/15 text-accent-purple text-[10px] border border-accent-purple/30">{t}</span>
-                              ))}
-                            </div>
-                          )}
-                          {cat.prompt && <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{cat.prompt}</p>}
-                          {!tieneRegla && (
-                            <button type="button" onClick={() => setCurrentStep(4)}
-                              className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-amber-400/90 hover:text-amber-300 transition-colors">
-                              <AlertTriangle className="w-3 h-3" />
-                              <span>Ninguna regla la enruta todavía — ir al Paso 4</span>
-                            </button>
-                          )}
-                        </div>
-                        <button type="button" onClick={() => {
-                          setCatEditId(cat.id);
-                          setCatNombre(cat.nombre);
-                          setCatDefinicion(cat.definicion ?? '');
-                          setCatTemas([...cat.temas]);
-                          setCatPrompt(cat.prompt);
-                          setCatTemaInput('');
-                          setCatEtiqueta(cat.etiqueta ?? '');
-                        }} className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-400 hover:text-accent-cyan" title="Editar">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button type="button" onClick={() => setCategoriasLlamadas((prev) => prev.filter((c) => c.id !== cat.id))}
-                          className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400" title="Eliminar">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </li>
-                      );
-                    })}
-                  </ul>
-                )}
-
-                {catEditId !== null ? (
-                  <div className="rounded-xl p-4 border border-accent-purple/30 bg-surface-700/50 space-y-3">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <label className="block text-[11px] font-medium text-accent-purple">Nombre de la categoría</label>
-                        <HelpTooltip titulo="Nombre" contenido="Nombre corto de la categoría (ej. Perfilamiento)." />
-                      </div>
-                      <input type="text" value={catNombre} onChange={(e) => setCatNombre(e.target.value)}
-                        placeholder="Ej: Perfilamiento, Seguimiento, Cierre"
-                        className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <label className="block text-[11px] font-medium text-accent-purple">Etiqueta de GHL (ancla de la categoría)</label>
-                        <HelpTooltip titulo="Etiqueta" contenido="Si el CONTACTO tiene esta etiqueta en GHL (ej. lead nuevo, lead perfilado, lead agendado), sus llamadas se evalúan con el prompt de esta categoría. Tiene prioridad sobre cualquier otra selección." />
-                      </div>
-                      {!ghlEtiquetasOpen ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button type="button" onClick={cargarEtiquetas} disabled={ghlEtiquetasLoading}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs font-semibold hover:bg-accent-purple/30 disabled:opacity-50">
-                            {ghlEtiquetasLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🏷️'} Elegir etiqueta
-                          </button>
-                          {catEtiqueta && <span className="text-[11px] px-2 py-1 rounded bg-surface-600 border border-surface-500 font-mono text-gray-300">{catEtiqueta}</span>}
-                          
-                        </div>
-                      ) : ghlEtiquetas.length > 0 ? (
-                        <select
-                          value={ghlEtiquetas.includes(catEtiqueta.trim().toLowerCase()) ? catEtiqueta.trim().toLowerCase() : ''}
-                          onChange={(e) => setCatEtiqueta(e.target.value)}
-                          className="w-full rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40 font-mono">
-                          <option value="">(sin etiqueta)</option>
-                          {ghlEtiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
-                          <option value="" disabled>¿Otra? Créala primero en GHL</option>
-                        </select>
-                      ) : (
-                        <p className="text-[11px] text-gray-500">No se encontraron etiquetas. Créala primero en GHL y vuelve a dar “Elegir etiqueta”.</p>
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <label className="block text-[11px] font-medium text-accent-purple">Definición / ¿Cuándo aplica esta categoría?</label>
-                        <HelpTooltip titulo="Definición" contenido="Explica en tus palabras cuándo una llamada es de este tipo y cómo reconocerla. La IA lo usa para clasificar. Ej: 'Primera llamada para conocer necesidad y presupuesto.'" />
-                      </div>
-                      <textarea value={catDefinicion} onChange={(e) => setCatDefinicion(e.target.value)}
-                        placeholder="Ej: Primera llamada para conocer necesidad y presupuesto del prospecto."
-                        className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-purple/40" />
-                      <p className="text-[10px] text-gray-500 mt-0.5 italic">Definición = cuándo aplica / cómo reconocerla.</p>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <label className="block text-[11px] font-medium text-accent-purple">Temas</label>
-                        <HelpTooltip titulo="Temas" contenido="Palabras/temas señal que suelen aparecer en este tipo de llamada (ej. presupuesto, ubicación, plazo). La IA los usa como pistas." />
-                      </div>
-                      <div className="flex flex-wrap gap-1 mb-1.5">
-                        {catTemas.map((t, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-accent-purple/15 text-accent-purple text-xs border border-accent-purple/30">
-                            {t}
-                            <button type="button" onClick={() => setCatTemas((prev) => prev.filter((_, j) => j !== i))} className="hover:text-red-400">×</button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-1.5">
-                        <input type="text" value={catTemaInput} onChange={(e) => setCatTemaInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && catTemaInput.trim()) {
-                              e.preventDefault();
-                              setCatTemas((prev) => [...prev, catTemaInput.trim()]);
-                              setCatTemaInput('');
-                            }
-                          }}
-                          placeholder="Escribe un tema y presiona Enter"
-                          className="flex-1 rounded-lg bg-surface-600 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
-                        <button type="button" onClick={() => {
-                          if (catTemaInput.trim()) {
-                            setCatTemas((prev) => [...prev, catTemaInput.trim()]);
-                            setCatTemaInput('');
-                          }
-                        }} className="px-2 py-1 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 text-xs hover:bg-accent-purple/30">
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="border-t border-surface-500 pt-3">
-                      <div className="flex items-center gap-1 mb-1">
-                        <label className="block text-[11px] font-medium text-accent-purple">Prompt de evaluación</label>
-                        <HelpTooltip titulo="Prompt de evaluación" contenido="Criterios de evaluación DENTRO de esta categoría: qué debe revisar la IA (ej. '¿preguntó presupuesto? ¿agendó siguiente paso?')." />
-                      </div>
-                      <textarea value={catPrompt} onChange={(e) => setCatPrompt(e.target.value)}
-                        placeholder="Evalúa esta llamada de perfilamiento según..."
-                        className="w-full rounded-lg bg-surface-600 border border-surface-500 p-2 text-sm text-white min-h-[100px] focus:ring-2 focus:ring-accent-purple/40" />
-                      <p className="text-[10px] text-gray-500 mt-0.5 italic">Prompt = qué evaluar dentro de la llamada.</p>
-                    </div>
-                    <div className="flex gap-2 justify-end">
-                      <button type="button" onClick={() => { setCatEditId(null); setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); setCatEtiqueta(''); }}
-                        className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white border border-surface-500 hover:border-surface-400">
-                        Cancelar
-                      </button>
-                      <button type="button" onClick={() => {
-                        if (!catNombre.trim()) { toast.error('El nombre es obligatorio'); return; }
-                        const existing = categoriasLlamadas.find((c) => c.id === catEditId);
-                        if (existing) {
-                          setCategoriasLlamadas((prev) => prev.map((c) => c.id === catEditId ? { ...c, nombre: catNombre.trim(), definicion: catDefinicion.trim() || undefined, temas: catTemas, prompt: catPrompt.trim(), etiqueta: catEtiqueta.trim() || undefined } : c));
-                        } else {
-                          setCategoriasLlamadas((prev) => [...prev, { id: catEditId, nombre: catNombre.trim(), definicion: catDefinicion.trim() || undefined, temas: catTemas, prompt: catPrompt.trim(), etiqueta: catEtiqueta.trim() || undefined }]);
-                        }
-                        setCatEditId(null); setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); setCatEtiqueta('');
-                      }} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-purple/20 text-accent-purple border border-accent-purple/40 hover:bg-accent-purple/30">
-                        {categoriasLlamadas.some((c) => c.id === catEditId) ? 'Actualizar' : 'Agregar'}
-                      </button>
-                    </div>
-                  </div>
-                ) : categoriasLlamadas.length > 0 ? (
                   <button type="button" onClick={() => {
-                    setCatEditId(crypto.randomUUID());
-                    setCatNombre(''); setCatDefinicion(''); setCatTemas([]); setCatPrompt(''); setCatTemaInput(''); setCatEtiqueta('');
-                  }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-accent-purple/20 text-accent-purple border border-accent-purple/40 hover:bg-accent-purple/30 transition-all">
-                    <Plus className="w-4 h-4" /> Añadir categoría
+                    if (!clReglaTag.trim() || !clReglaCond.trim()) { toast.error('Etiqueta y condición son obligatorias'); return; }
+                    setClReglas((prev) => [...prev, { id: `regla-${Date.now()}`, tag: clReglaTag.trim(), condition: clReglaCond.trim() }]);
+                    setClReglaTag(''); setClReglaCond('');
+                  }} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent-amber/20 text-accent-amber border border-accent-amber/40 text-[11px] font-semibold hover:bg-accent-amber/30">
+                    <Plus className="w-3 h-3" /> Añadir regla
                   </button>
-                ) : null}
-              </div>
+                </div>
 
-              {/* Horario laboral — base del "Speed to lead asesor" */}
-              <div className="pt-4 mt-2 border-t border-surface-500 space-y-3">
-                <div>
-                  <h3 className="text-base font-semibold text-white">Horario laboral</h3>
-                  <p className="text-xs text-gray-400">Se usa para el <strong>Speed to lead asesor</strong>: cuenta solo los minutos dentro de este horario desde que se asigna el lead hasta la primera llamada (en la zona horaria de la cuenta).</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {[{ n: 1, l: 'Lun' }, { n: 2, l: 'Mar' }, { n: 3, l: 'Mié' }, { n: 4, l: 'Jue' }, { n: 5, l: 'Vie' }, { n: 6, l: 'Sáb' }, { n: 7, l: 'Dom' }].map((d) => {
-                    const active = horarioLaboral.dias.includes(d.n);
-                    return (
-                      <button key={d.n} type="button"
-                        onClick={() => setHorarioLaboral((h) => ({ ...h, dias: active ? h.dias.filter((x) => x !== d.n) : [...h.dias, d.n].sort((a, b) => a - b) }))}
-                        className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${active ? 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/50' : 'bg-surface-700 text-gray-400 border-surface-500 hover:border-surface-400'}`}>
-                        {d.l}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-4">
-                  <label className="text-sm text-gray-300 flex items-center gap-2">Desde
-                    <input type="time" value={horarioLaboral.hora_inicio}
-                      onChange={(e) => setHorarioLaboral((h) => ({ ...h, hora_inicio: e.target.value }))}
-                      className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white" />
-                  </label>
-                  <label className="text-sm text-gray-300 flex items-center gap-2">Hasta
-                    <input type="time" value={horarioLaboral.hora_fin}
-                      onChange={(e) => setHorarioLaboral((h) => ({ ...h, hora_fin: e.target.value }))}
-                      className="rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white" />
-                  </label>
+                <div className="flex items-center gap-2 pt-1">
+                  <button type="button" onClick={() => {
+                    if (!clNombre.trim() || !clEtiqueta.trim() || !clPrompt.trim()) { toast.error('Nombre, etiqueta y prompt de evaluación son obligatorios'); return; }
+                    const item = { id: clEditId ?? `lead-${Date.now()}`, nombre: clNombre.trim(), etiqueta: clEtiqueta.trim(), prompt: clPrompt.trim(), prompt_resumen: clPromptResumen.trim() || undefined, reglas_etiquetas: clReglas };
+                    if (clEditId) setCategoriasLeads((prev) => prev.map((c) => c.id === clEditId ? item : c));
+                    else setCategoriasLeads((prev) => [...prev, item]);
+                    setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]); setClReglaTag(''); setClReglaCond('');
+                  }} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-purple text-white text-sm font-semibold hover:bg-accent-purple/90">
+                    <Plus className="w-4 h-4" /> {clEditId ? 'Guardar etapa' : 'Añadir etapa'}
+                  </button>
+                  {clEditId && (
+                    <button type="button" onClick={() => { setClEditId(null); setClNombre(''); setClEtiqueta(''); setClPrompt(''); setClPromptResumen(''); setClReglas([]); }}
+                      className="text-xs text-gray-500 hover:text-gray-300">Cancelar</button>
+                  )}
+                  <p className="text-[10px] text-gray-500 ml-auto">Recuerda dar “Guardar” abajo para aplicar.</p>
                 </div>
               </div>
             </div>
