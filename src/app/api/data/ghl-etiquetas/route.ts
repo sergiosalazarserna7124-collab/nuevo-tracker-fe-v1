@@ -92,8 +92,9 @@ export async function GET(req: Request) {
 
     // 1) API de GHL — token de la cuenta y token OAuth del marketplace
     if (locationId) {
+      // OAuth primero (token de la app, se auto-refresca en el backend); el PIT
+      // (token_ghl) queda solo como último recurso.
       const tokens: string[] = [];
-      if (cuenta?.token_ghl?.trim()) tokens.push(cuenta.token_ghl);
       try {
         const oauthRows = await db.execute(
           sql`SELECT access_token FROM ghl_oauth_tokens WHERE id_cuenta = ${idCuenta} AND location_id NOT LIKE 'company:%' LIMIT 1`,
@@ -101,6 +102,7 @@ export async function GET(req: Request) {
         const oauthToken = (oauthRows.rows?.[0] as { access_token?: string } | undefined)?.access_token;
         if (oauthToken) tokens.push(oauthToken);
       } catch { /* tabla puede no existir en algún entorno */ }
+      if (cuenta?.token_ghl?.trim()) tokens.push(cuenta.token_ghl);
 
       for (const token of tokens) {
         const tags = await fetchGhlTags(locationId, token);

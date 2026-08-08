@@ -69,8 +69,9 @@ export async function GET(req: Request) {
     const locationId = cuenta?.locationid?.trim();
     if (!locationId) return NextResponse.json({ pipelines: [], fuente: "sin_location", motivo: "La cuenta no tiene locationId de GHL." });
 
+    // OAuth primero (token de la app, se auto-refresca en el backend); el PIT
+    // (token_ghl) queda solo como último recurso.
     const tokens: string[] = [];
-    if (cuenta?.token_ghl?.trim()) tokens.push(cuenta.token_ghl);
     try {
       const oauthRows = await db.execute(
         sql`SELECT access_token FROM ghl_oauth_tokens WHERE id_cuenta = ${idCuenta} AND location_id NOT LIKE 'company:%' LIMIT 1`,
@@ -78,6 +79,7 @@ export async function GET(req: Request) {
       const oauthToken = (oauthRows.rows?.[0] as { access_token?: string } | undefined)?.access_token;
       if (oauthToken) tokens.push(oauthToken);
     } catch { /* tabla puede no existir en algún entorno */ }
+    if (cuenta?.token_ghl?.trim()) tokens.push(cuenta.token_ghl);
 
     if (tokens.length === 0) return NextResponse.json({ pipelines: [], fuente: "sin_token", motivo: "La cuenta no tiene token de GHL configurado." });
 
