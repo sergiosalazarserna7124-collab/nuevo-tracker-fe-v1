@@ -695,6 +695,99 @@ function TabCitas({
   );
 }
 
+// ─── Lista unificada de leads del asesor (todos los canales) ─────────────────
+interface UnifiedLead {
+  key: string;
+  name: string;
+  subtitle: string;
+  channels: { llamada: boolean; chat: boolean; cita: boolean };
+  leadRef?: AsesorLeadCRM;
+}
+
+function buildUnifiedLeads(data: AsesorResponse): UnifiedLead[] {
+  const map = new Map<string, UnifiedLead>();
+  const idOf = (name?: string | null, email?: string | null, phone?: string | null) =>
+    (email?.trim().toLowerCase() || phone?.trim() || name?.trim().toLowerCase() || "").trim();
+  const ensure = (name?: string | null, email?: string | null, phone?: string | null) => {
+    const k = idOf(name, email, phone) || `x-${map.size}`;
+    let u = map.get(k);
+    if (!u) {
+      u = { key: k, name: name?.trim() || email?.trim() || phone?.trim() || "—", subtitle: email?.trim() || phone?.trim() || "", channels: { llamada: false, chat: false, cita: false } };
+      map.set(k, u);
+    }
+    if ((!u.name || u.name === "—") && name?.trim()) u.name = name.trim();
+    if (!u.subtitle && (email?.trim() || phone?.trim())) u.subtitle = email?.trim() || phone?.trim() || "";
+    return u;
+  };
+  for (const l of data.leads) { const u = ensure(l.name, l.email, l.phone); u.channels.llamada = true; u.leadRef = l; }
+  for (const c of data.chats) { const u = ensure(c.leadName, c.leadEmail, null); u.channels.chat = true; }
+  for (const v of data.videollamadas) { const u = ensure(v.leadName, v.leadEmail, null); u.channels.cita = true; }
+  return [...map.values()];
+}
+
+function canalesTexto(ch: UnifiedLead["channels"]): string {
+  const parts: string[] = [];
+  if (ch.llamada) parts.push("llamada");
+  if (ch.chat) parts.push("chat");
+  if (ch.cita) parts.push("videollamada");
+  return parts.length ? `Con registro de: ${parts.join(", ")}` : "Sin registros de interacción";
+}
+
+function LeadsUnificados({ data, onSelectLead }: { data: AsesorResponse; onSelectLead: (lead: AsesorLeadCRM) => void }) {
+  const [search, setSearch] = useState("");
+  const unified = useMemo(() => buildUnifiedLeads(data), [data]);
+  const filtered = useMemo(() => {
+    if (!search.trim()) return unified;
+    const q = search.toLowerCase();
+    return unified.filter((u) => u.name.toLowerCase().includes(q) || u.subtitle.toLowerCase().includes(q));
+  }, [unified, search]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <input
+        type="text"
+        placeholder="Buscar lead..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full rounded-lg bg-surface-700 border border-surface-500 px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-accent-cyan/50 focus:border-accent-cyan outline-none"
+      />
+      {filtered.length === 0 ? (
+        <p className="text-gray-500 text-sm text-center py-8">{search ? "Sin resultados." : "Sin leads en este período."}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {filtered.map((u) => (
+            <button
+              key={u.key}
+              type="button"
+              onClick={() => u.leadRef && onSelectLead(u.leadRef)}
+              className="w-full text-left rounded-lg bg-surface-700 hover:bg-surface-600 px-3 py-2.5 transition-colors group"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-full bg-surface-600 flex items-center justify-center shrink-0 group-hover:bg-surface-500">
+                    <User className="w-3.5 h-3.5 text-gray-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-white truncate">{u.name}</p>
+                    <p className="text-[10px] text-gray-500 truncate">{u.subtitle || "—"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {u.channels.llamada && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-accent-cyan/20 text-accent-cyan"><Phone className="w-3 h-3" /></span>}
+                  {u.channels.chat && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-accent-amber/20 text-accent-amber"><MessageSquare className="w-3 h-3" /></span>}
+                  {u.channels.cita && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-accent-purple/20 text-accent-purple"><Video className="w-3 h-3" /></span>}
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400" />
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1 ml-9">{canalesTexto(u.channels)}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CHANNEL_TABS: {
   key: ChannelTab;
   label: string;
@@ -816,45 +909,6 @@ export default function AdvisorDrillDown({
           </div>
         ) : (
           <>
-            <div className="flex gap-1 px-4 py-2 border-b border-surface-500 shrink-0 overflow-x-auto">
-              {availableTabs.map((tab) => {
-                const count = tabCounts[tab.key];
-                const isActive = validActiveTab === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => {
-                      setActiveTab(tab.key);
-                      setDetail(null);
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                      isActive
-                        ? "bg-accent-cyan text-surface-900"
-                        : "text-gray-400 hover:text-white hover:bg-surface-700"
-                    }`}
-                  >
-                    <tab.icon className="w-3.5 h-3.5" />
-                    {tab.label}
-                    <span
-                      className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] ${
-                        isActive
-                          ? "bg-surface-900/30 text-surface-900"
-                          : "bg-surface-600 text-gray-500"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                    <HelpTooltip
-                      titulo={tab.label}
-                      contenido={tab.tooltip}
-                      comoProbar={`Revisa las métricas y la lista de ${tab.label.toLowerCase()} del asesor.`}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-
             <div className="flex-1 overflow-y-auto px-4 py-3">
               {loading && (
                 <div className="flex items-center justify-center py-12">
@@ -870,55 +924,14 @@ export default function AdvisorDrillDown({
                 </div>
               )}
 
-              {!loading && !error && detail && (
-                <>
-                  {detail.kind === "lead" && (
-                    <LeadCallDetail
-                      lead={detail.data}
-                      onBack={() => setDetail(null)}
-                    />
-                  )}
-                  {detail.kind === "chat" && (
-                    <ChatDetail
-                      chat={detail.data}
-                      onBack={() => setDetail(null)}
-                    />
-                  )}
-                  {detail.kind === "cita" && (
-                    <CitaDetail
-                      cita={detail.data}
-                      onBack={() => setDetail(null)}
-                    />
-                  )}
-                </>
+              {!loading && !error && detail && detail.kind === "lead" && (
+                <LeadCallDetail lead={detail.data} onBack={() => setDetail(null)} />
               )}
 
               {!loading && !error && !detail && data && (
                 <>
-                  {validActiveTab === "llamadas" && (
-                    <TabLlamadas
-                      data={data}
-                      onSelectLead={(lead) =>
-                        setDetail({ kind: "lead", data: lead })
-                      }
-                    />
-                  )}
-                  {validActiveTab === "chats" && (
-                    <TabChats
-                      data={data}
-                      onSelectChat={(chat) =>
-                        setDetail({ kind: "chat", data: chat })
-                      }
-                    />
-                  )}
-                  {validActiveTab === "citas" && (
-                    <TabCitas
-                      data={data}
-                      onSelectCita={(cita) =>
-                        setDetail({ kind: "cita", data: cita })
-                      }
-                    />
-                  )}
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Leads de {advisorName}</p>
+                  <LeadsUnificados data={data} onSelectLead={(lead) => setDetail({ kind: "lead", data: lead })} />
                 </>
               )}
             </div>
