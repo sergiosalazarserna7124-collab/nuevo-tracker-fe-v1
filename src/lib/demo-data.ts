@@ -105,6 +105,7 @@ export function generateDashboard(): DashboardResponse {
       speedToLeadLaboral: rnd(2, 40) + Math.random(),
       meetingsBooked: booked,
       meetingsAttended: attended,
+      ventas: Math.floor(attended * 0.3),
       revenue: rev,
       cashCollected: Math.floor(rev * 0.7),
       dineroEntrante: rev,

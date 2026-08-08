@@ -494,6 +494,7 @@ export interface AdvisorFilteredMetrics {
   speedToLeadLaboral: number | null;
   meetingsBooked: number;
   meetingsAttended: number;
+  ventas: number;
   revenue: number;
   cashCollected: number;
   dineroEntrante: number;
@@ -520,6 +521,7 @@ export interface DashboardAdvisorRow {
   speedToLeadLaboral: number | null;
   meetingsBooked: number;
   meetingsAttended: number;
+  ventas: number;
   revenue: number;
   cashCollected: number;
   dineroEntrante: number;

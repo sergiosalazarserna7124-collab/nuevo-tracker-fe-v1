@@ -34,14 +34,15 @@ const LOSS_REASON_PIE_COLORS = ['#f43f5e', '#fb923c', '#a78bfa', '#38bdf8', '#34
 const RANKING_COLS = [
   { key: 'leads', label: 'Leads' },
   { key: 'llamadas', label: 'Llamadas realizadas' },
+  { key: 'speed_laboral', label: 'Speed to lead' },
   { key: 'contestadas', label: 'Llamadas contestadas' },
+  { key: 'tasa_contestacion', label: 'Tasa contestación' },
   { key: 'agendadas', label: 'Citas agendadas' },
   { key: 'asistidas', label: 'Asistencia' },
-  { key: 'dinero', label: 'Dinero entrante' },
-  { key: 'speed_laboral', label: 'Speed to lead' },
-  { key: 'tasa_contestacion', label: 'Tasa contestación' },
   { key: 'tasa_asistencia', label: 'Tasa asistencia' },
+  { key: 'ventas', label: 'Ventas' },
   { key: 'tasa_cierre', label: 'Tasa cierre' },
+  { key: 'dinero', label: 'Dinero entrante' },
 ] as const;
 
 type RankingColKey = typeof RANKING_COLS[number]['key'];
@@ -57,6 +58,7 @@ function rankingSortValue(row: DashboardAdvisorRow, key: RankingSortKey): number
     case 'contestadas': return row.contestadas ?? 0;
     case 'agendadas': return row.meetingsBooked;
     case 'asistidas': return row.meetingsAttended;
+    case 'ventas': return row.ventas ?? 0;
     case 'dinero': return row.dineroEntrante ?? 0;
     case 'speed_laboral': return row.speedToLeadLaboral ?? 0;
     case 'tasa_contestacion': return row.tasaContestacion ?? 0;
@@ -822,14 +824,15 @@ export default function DashboardPage() {
                     <th className="px-2 py-2 font-medium">Asesor</th>
                     {rankingColsVisible.includes('leads') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('leads')}><span title="Leads únicos trabajados en el período, sin importar el canal: llamada, chat o cita.">{leadFilter === 'nuevos' ? 'Leads nuevos' : leadFilter === 'reactivados' ? 'Leads reactivados' : 'Leads'} ⓘ</span><RankingSortIcon col="leads" /></th>}
                     {rankingColsVisible.includes('llamadas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('llamadas')}>Llamadas realizadas<RankingSortIcon col="llamadas" /></th>}
+                    {rankingColsVisible.includes('speed_laboral') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('speed_laboral')}><span title="Minutos promedio EN HORARIO LABORAL desde que el lead se asignó al asesor hasta su primera llamada.">Speed to lead ⓘ</span><RankingSortIcon col="speed_laboral" /></th>}
                     {rankingColsVisible.includes('contestadas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('contestadas')}>Llamadas contestadas<RankingSortIcon col="contestadas" /></th>}
+                    {rankingColsVisible.includes('tasa_contestacion') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('tasa_contestacion')}><span title="Llamadas contestadas ÷ Llamadas realizadas del asesor.">Tasa contestación ⓘ</span><RankingSortIcon col="tasa_contestacion" /></th>}
                     {rankingColsVisible.includes('agendadas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('agendadas')}><span title="Citas agendadas únicas en el período (leads únicos, sin contar múltiples estados del mismo lead).">Citas agendadas ⓘ</span><RankingSortIcon col="agendadas" /></th>}
                     {rankingColsVisible.includes('asistidas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('asistidas')}><span title="Leads que se presentaron a su cita (asistieron).">Asistencia ⓘ</span><RankingSortIcon col="asistidas" /></th>}
-                    {rankingColsVisible.includes('dinero') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('dinero')}><span title="Monto apartado + monto vendido del período de los leads de este asesor (etiquetas 'apartado' y 'compro').">Dinero entrante ⓘ</span><RankingSortIcon col="dinero" /></th>}
-                    {rankingColsVisible.includes('speed_laboral') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('speed_laboral')}><span title="Minutos promedio EN HORARIO LABORAL desde que el lead se asignó al asesor hasta su primera llamada.">Speed to lead ⓘ</span><RankingSortIcon col="speed_laboral" /></th>}
-                    {rankingColsVisible.includes('tasa_contestacion') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('tasa_contestacion')}><span title="Llamadas contestadas ÷ Llamadas realizadas del asesor.">Tasa contestación ⓘ</span><RankingSortIcon col="tasa_contestacion" /></th>}
                     {rankingColsVisible.includes('tasa_asistencia') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('tasa_asistencia')}><span title="Asistidas ÷ (Agendadas − Pendientes − Canceladas) del asesor.">Tasa asistencia ⓘ</span><RankingSortIcon col="tasa_asistencia" /></th>}
-                    {rankingColsVisible.includes('tasa_cierre') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('tasa_cierre')}><span title="Ventas (etiqueta compro) ÷ Citas asistidas del asesor.">Tasa cierre ⓘ</span><RankingSortIcon col="tasa_cierre" /></th>}
+                    {rankingColsVisible.includes('ventas') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('ventas')}><span title="Número de ventas del período de los leads de este asesor (etiqueta de venta en GHL).">Ventas ⓘ</span><RankingSortIcon col="ventas" /></th>}
+                    {rankingColsVisible.includes('tasa_cierre') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('tasa_cierre')}><span title="Ventas ÷ Citas asistidas del asesor.">Tasa cierre ⓘ</span><RankingSortIcon col="tasa_cierre" /></th>}
+                    {rankingColsVisible.includes('dinero') && <th className="px-2 py-2 font-medium cursor-pointer hover:text-white" onClick={() => toggleRankingSort('dinero')}><span title="Monto apartado + monto vendido del período de los leads de este asesor.">Dinero entrante ⓘ</span><RankingSortIcon col="dinero" /></th>}
                     {webhookRankingCols.map((col) => (
                       <th key={col.key} className="px-2 py-2 font-medium">{col.label}</th>
                     ))}
@@ -865,14 +868,15 @@ export default function DashboardPage() {
                             </td>
                           )}
                           {rankingColsVisible.includes('llamadas') && <td className="px-2 py-2 text-accent-cyan">{a.callsMade}</td>}
+                          {rankingColsVisible.includes('speed_laboral') && <td className="px-2 py-2 text-gray-300">{a.speedToLeadLaboral != null ? minFmt(a.speedToLeadLaboral) : '—'}</td>}
                           {rankingColsVisible.includes('contestadas') && <td className="px-2 py-2 text-accent-green">{a.contestadas ?? 0}</td>}
+                          {rankingColsVisible.includes('tasa_contestacion') && <td className="px-2 py-2">{pctFmt(a.tasaContestacion ?? 0)}</td>}
                           {rankingColsVisible.includes('agendadas') && <td className="px-2 py-2 text-accent-purple">{a.meetingsBooked}</td>}
                           {rankingColsVisible.includes('asistidas') && <td className="px-2 py-2 text-accent-cyan">{a.meetingsAttended}</td>}
-                          {rankingColsVisible.includes('dinero') && <td className="px-2 py-2 text-accent-green">{fm(a.dineroEntrante ?? 0)}</td>}
-                          {rankingColsVisible.includes('speed_laboral') && <td className="px-2 py-2 text-gray-300">{a.speedToLeadLaboral != null ? minFmt(a.speedToLeadLaboral) : '—'}</td>}
-                          {rankingColsVisible.includes('tasa_contestacion') && <td className="px-2 py-2">{pctFmt(a.tasaContestacion ?? 0)}</td>}
                           {rankingColsVisible.includes('tasa_asistencia') && <td className="px-2 py-2">{pctFmt(a.tasaAsistencia ?? 0)}</td>}
+                          {rankingColsVisible.includes('ventas') && <td className="px-2 py-2 text-accent-green">{a.ventas ?? 0}</td>}
                           {rankingColsVisible.includes('tasa_cierre') && <td className="px-2 py-2">{pctFmt(a.tasaCierre ?? 0)}</td>}
+                          {rankingColsVisible.includes('dinero') && <td className="px-2 py-2 text-accent-green">{fm(a.dineroEntrante ?? 0)}</td>}
                           {webhookRankingCols.map((col) => (
                             <td key={col.key} className="px-2 py-2 text-gray-300">
                               {a.metricasWebhook?.[col.key] ?? '—'}

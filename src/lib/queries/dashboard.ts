@@ -1024,7 +1024,7 @@ export async function getDashboard(
 
       const computeFilteredMetrics = (leadKeys: Set<string>): {
         totalLeads: number; callsMade: number; contestadas: number; speedToLeadAvg: number | null;
-        speedToLeadLaboral: number | null; meetingsBooked: number; meetingsAttended: number; revenue: number;
+        speedToLeadLaboral: number | null; meetingsBooked: number; meetingsAttended: number; ventas: number; revenue: number;
         cashCollected: number; dineroEntrante: number; contactRate: number; bookingRate: number;
         tasaContestacion: number; tasaAsistencia: number; tasaCierre: number;
       } => {
@@ -1070,6 +1070,7 @@ export async function getDashboard(
           speedToLeadLaboral: fSpeedsLab.length > 0 ? fSpeedsLab.reduce((s, v) => s + v, 0) / fSpeedsLab.length : null,
           meetingsBooked: fMeetings,
           meetingsAttended: fAttended,
+          ventas: fVentas,
           revenue: fRevenue,
           cashCollected: fCash,
           dineroEntrante: fDinero,
@@ -1097,6 +1098,7 @@ export async function getDashboard(
         speedToLeadLaboral: advisorSpeeds.length > 0 ? advisorSpeeds.reduce((s, v) => s + v.mins, 0) / advisorSpeeds.length : null,
         meetingsBooked: aMeetingsBooked,
         meetingsAttended: aAsistidas,
+        ventas: advisorDinero.reduce((s, d) => s + d.ventas, 0),
         revenue: aRevenue,
         cashCollected: aCash,
         dineroEntrante: advisorDinero.reduce((s, d) => s + d.monto, 0),
