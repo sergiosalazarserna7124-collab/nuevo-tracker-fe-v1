@@ -420,11 +420,32 @@ export default function SystemPage() {
       else {
         setGhlPipelines(Array.isArray(data.pipelines) ? data.pipelines : []);
         setGhlPipelinesLoaded(true);
-        if ((data.pipelines?.length ?? 0) === 0) toast.warning('No se encontraron pipelines en GHL');
+        if ((data.pipelines?.length ?? 0) === 0) toast.warning(data.motivo ?? 'No se encontraron pipelines en GHL');
         else toast.success(`${data.pipelines.length} pipeline(s) sincronizado(s)`);
       }
     } catch { toast.error('Error de red cargando pipelines'); }
     setGhlPipelinesLoading(false);
+  };
+  // Custom fields de GHL (para las acciones de campo de las reglas)
+  interface GhlCampo { id: string; name: string; key: string; dataType: string }
+  const [ghlCampos, setGhlCampos] = useState<GhlCampo[]>([]);
+  const [ghlCamposLoaded, setGhlCamposLoaded] = useState(false);
+  const [ghlCamposLoading, setGhlCamposLoading] = useState(false);
+  const cargarCampos = async () => {
+    if (ghlCamposLoading) return;
+    setGhlCamposLoading(true);
+    try {
+      const res = await fetch('/api/data/ghl-campos');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error('No se pudieron cargar los campos de GHL'); }
+      else {
+        setGhlCampos(Array.isArray(data.campos) ? data.campos : []);
+        setGhlCamposLoaded(true);
+        if ((data.campos?.length ?? 0) === 0) toast.warning(data.motivo ?? 'No se encontraron campos personalizados en GHL');
+        else toast.success(`${data.campos.length} campo(s) sincronizado(s)`);
+      }
+    } catch { toast.error('Error de red cargando campos'); }
+    setGhlCamposLoading(false);
   };
   // Categorías de chats por etiqueta (prompt de análisis según etapa del contacto)
   const [categoriasChats, setCategoriasChats] = useState<CategoriaChat[]>([]);
@@ -1222,10 +1243,25 @@ export default function SystemPage() {
                                   )}
                                   {a.tipo === 'escribir_campo_ghl' && (
                                     <>
-                                      <div className="flex-1 min-w-[140px]">
+                                      <div className="flex-1 min-w-[160px]">
                                         <label className="block text-[10px] font-medium text-accent-green mb-0.5">Campo de GHL</label>
-                                        <input type="text" value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
-                                          placeholder="ej: presupuesto_estado" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
+                                        {ghlCamposLoaded && ghlCampos.length > 0 ? (
+                                          <select value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
+                                            className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40">
+                                            <option value="">— Elegir campo —</option>
+                                            {a.fieldId && !ghlCampos.some((c) => c.key === a.fieldId) && <option value={a.fieldId}>{a.fieldId} (manual)</option>}
+                                            {ghlCampos.map((c) => (<option key={c.id} value={c.key}>{c.name}</option>))}
+                                          </select>
+                                        ) : (
+                                          <div className="flex gap-1">
+                                            <input type="text" value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
+                                              placeholder="ej: presupuesto_estado" className="flex-1 min-w-0 rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-green/40" />
+                                            <button type="button" onClick={cargarCampos} disabled={ghlCamposLoading} title="Traer campos de GHL"
+                                              className="shrink-0 px-2 rounded-lg bg-accent-green/20 text-accent-green border border-accent-green/40 hover:bg-accent-green/30 disabled:opacity-50">
+                                              {ghlCamposLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                                            </button>
+                                          </div>
+                                        )}
                                       </div>
                                       <div className="flex-1 min-w-[140px]">
                                         <label className="block text-[10px] font-medium text-accent-green mb-0.5">Texto a escribir</label>
@@ -1236,13 +1272,28 @@ export default function SystemPage() {
                                   )}
                                   {a.tipo === 'escribir_campo_ghl_ia' && (
                                     <>
-                                      <div className="flex-1 min-w-[140px]">
-                                        <label className="block text-[10px] font-medium text-accent-purple mb-0.5">ID del campo de GHL</label>
-                                        <input type="text" value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
-                                          placeholder="ej: resumen_interes" className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
+                                      <div className="flex-1 min-w-[160px]">
+                                        <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Campo de GHL</label>
+                                        {ghlCamposLoaded && ghlCampos.length > 0 ? (
+                                          <select value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
+                                            className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40">
+                                            <option value="">— Elegir campo —</option>
+                                            {a.fieldId && !ghlCampos.some((c) => c.key === a.fieldId) && <option value={a.fieldId}>{a.fieldId} (manual)</option>}
+                                            {ghlCampos.map((c) => (<option key={c.id} value={c.key}>{c.name}</option>))}
+                                          </select>
+                                        ) : (
+                                          <div className="flex gap-1">
+                                            <input type="text" value={a.fieldId ?? ''} onChange={(e) => updateAccion(ai, { fieldId: e.target.value || undefined })}
+                                              placeholder="ej: resumen_interes" className="flex-1 min-w-0 rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white focus:ring-2 focus:ring-accent-purple/40" />
+                                            <button type="button" onClick={cargarCampos} disabled={ghlCamposLoading} title="Traer campos de GHL"
+                                              className="shrink-0 px-2 rounded-lg bg-accent-purple/20 text-accent-purple border border-accent-purple/40 hover:bg-accent-purple/30 disabled:opacity-50">
+                                              {ghlCamposLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                                            </button>
+                                          </div>
+                                        )}
                                       </div>
                                       <div className="w-full">
-                                        <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Mini-prompt</label>
+                                        <label className="block text-[10px] font-medium text-accent-purple mb-0.5">Mini-prompt (qué debe escribir la IA)</label>
                                         <textarea value={a.prompt ?? ''} onChange={(e) => updateAccion(ai, { prompt: e.target.value })}
                                           placeholder="ej: Resume en 1 frase por qué el lead está interesado"
                                           className="w-full rounded-lg bg-surface-700 border border-surface-500 px-2 py-1.5 text-sm text-white min-h-[60px] focus:ring-2 focus:ring-accent-purple/40" />

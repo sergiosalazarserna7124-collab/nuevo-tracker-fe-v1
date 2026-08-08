@@ -15,7 +15,11 @@ interface GhlPipeline {
   stages: Array<{ id: string; name: string }>;
 }
 
-async function fetchGhlPipelines(locationId: string, token: string): Promise<GhlPipeline[] | null> {
+type FetchResult =
+  | { ok: true; pipelines: GhlPipeline[] }
+  | { ok: false; status: number; motivo: string };
+
+async function fetchGhlPipelines(locationId: string, token: string): Promise<FetchResult> {
   try {
     const url = new URL("https://services.leadconnectorhq.com/opportunities/pipelines");
     url.searchParams.set("locationId", locationId);
@@ -27,7 +31,14 @@ async function fetchGhlPipelines(locationId: string, token: string): Promise<Ghl
       },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.warn(`[ghl-pipelines] GHL ${res.status}: ${text.slice(0, 300)}`);
+      const motivo = res.status === 401 || res.status === 403
+        ? "El token de GHL no tiene permiso para leer pipelines (scope opportunities). Reinstala/actualiza la app con ese permiso."
+        : `GHL respondió ${res.status}`;
+      return { ok: false, status: res.status, motivo };
+    }
     const data = (await res.json()) as {
       pipelines?: Array<{ id?: string; name?: string; stages?: Array<{ id?: string; name?: string }> }>;
     };
@@ -40,9 +51,10 @@ async function fetchGhlPipelines(locationId: string, token: string): Promise<Ghl
           .filter((s) => s.id && s.name),
       }))
       .filter((p) => p.id && p.name);
-    return pipelines;
-  } catch {
-    return null;
+    return { ok: true, pipelines };
+  } catch (err) {
+    console.warn(`[ghl-pipelines] error de red:`, err);
+    return { ok: false, status: 0, motivo: "Error de red llamando a GHL" };
   }
 }
 
@@ -55,7 +67,7 @@ export async function GET(req: Request) {
       .limit(1);
 
     const locationId = cuenta?.locationid?.trim();
-    if (!locationId) return NextResponse.json({ pipelines: [], fuente: "sin_location" });
+    if (!locationId) return NextResponse.json({ pipelines: [], fuente: "sin_location", motivo: "La cuenta no tiene locationId de GHL." });
 
     const tokens: string[] = [];
     if (cuenta?.token_ghl?.trim()) tokens.push(cuenta.token_ghl);
@@ -67,13 +79,17 @@ export async function GET(req: Request) {
       if (oauthToken) tokens.push(oauthToken);
     } catch { /* tabla puede no existir en algún entorno */ }
 
+    if (tokens.length === 0) return NextResponse.json({ pipelines: [], fuente: "sin_token", motivo: "La cuenta no tiene token de GHL configurado." });
+
+    let ultimoMotivo = "No se encontraron pipelines en GHL.";
     for (const token of tokens) {
-      const pipelines = await fetchGhlPipelines(locationId, token);
-      if (pipelines && pipelines.length > 0) {
-        return NextResponse.json({ pipelines, fuente: "ghl" });
+      const res = await fetchGhlPipelines(locationId, token);
+      if (res.ok && res.pipelines.length > 0) {
+        return NextResponse.json({ pipelines: res.pipelines, fuente: "ghl" });
       }
+      if (!res.ok) ultimoMotivo = res.motivo;
     }
 
-    return NextResponse.json({ pipelines: [], fuente: "vacio" });
+    return NextResponse.json({ pipelines: [], fuente: "vacio", motivo: ultimoMotivo });
   });
 }
