@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   X,
   Phone,
@@ -823,6 +823,56 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
     cita: interacciones.filter((i) => i.canal === "cita").length,
   }), [interacciones]);
 
+  // Resumen por canal (interacciones ya vienen ordenadas desc por fecha).
+  // Llamadas: "en qué quedó" = la última CONTESTADA (excluye no-contestadas).
+  const resumenCanales = useMemo(() => {
+    const llamadas = interacciones.filter((i) => i.canal === "llamada");
+    const citas = interacciones.filter((i) => i.canal === "cita");
+    const chats = interacciones.filter((i) => i.canal === "chat");
+    const ultimaContestada = llamadas.find((i) => i.nota && esLlamadaEfectiva(i.nota));
+    return {
+      llamada: llamadas.length
+        ? { count: llamadas.length, resumen: ultimaContestada ? llamadaResumenBreve(ultimaContestada.nota!) : "Sin llamadas contestadas" }
+        : null,
+      chat: chats.length
+        ? { count: chats.length, resumen: chats[0].texto, estado: chats[0].chat ? chatEstado(chats[0].chat) : null }
+        : null,
+      cita: citas.length ? { count: citas.length, resumen: citas[0].texto } : null,
+    };
+  }, [interacciones]);
+
+  // Contexto compacto cruzando canales para la síntesis IA on-demand.
+  const contextoIA = useMemo(() => {
+    const parts: string[] = [];
+    const chats = interacciones.filter((i) => i.canal === "chat");
+    const contestadas = interacciones.filter((i) => i.canal === "llamada" && i.nota && esLlamadaEfectiva(i.nota));
+    const citas = interacciones.filter((i) => i.canal === "cita");
+    if (chats.length) parts.push(`CHATS (${chats.length}):\n` + chats.slice(0, 3).map((c) => `- ${c.texto}`).join("\n"));
+    if (contestadas.length) parts.push(`LLAMADAS CONTESTADAS (${contestadas.length}):\n` + contestadas.slice(0, 3).map((l) => `- ${l.nota?.resumenLlamada?.desenlace || l.nota?.iaDescripcion || l.texto}`).join("\n"));
+    if (citas.length) parts.push(`CITAS (${citas.length}):\n` + citas.slice(0, 3).map((v) => `- ${v.texto}`).join("\n"));
+    return parts.join("\n\n");
+  }, [interacciones]);
+
+  const [resumenLead, setResumenLead] = useState<string | null>(null);
+  const [resumenLoading, setResumenLoading] = useState(false);
+
+  useEffect(() => {
+    if (!contextoIA.trim()) { setResumenLead(null); setResumenLoading(false); return; }
+    let cancelled = false;
+    setResumenLoading(true);
+    setResumenLead(null);
+    fetch("/api/data/lead-resumen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contexto: contextoIA, leadName: lead.name }),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setResumenLead(d?.resumen ?? null); })
+      .catch(() => { if (!cancelled) setResumenLead(null); })
+      .finally(() => { if (!cancelled) setResumenLoading(false); });
+    return () => { cancelled = true; };
+  }, [contextoIA, lead.name]);
+
   // Sub-categorías del canal activo (citas: pendiente/asistio/…; llamadas: contestada/no_contesto/…)
   const subCats = useMemo(() => {
     if (canal !== "cita" && canal !== "llamada") return [] as { cat: string; label: string }[];
@@ -867,6 +917,68 @@ function LeadDetalleCrossCanal({ lead, data, onBack }: { lead: AsesorLeadCRM; da
           </div>
         </div>
       </div>
+
+      {/* Resumen IA del lead (cruzando todos los canales) */}
+      {(resumenLoading || resumenLead) && (
+        <div className="rounded-lg border border-accent-purple/30 bg-accent-purple/5 p-3 mb-3">
+          <h4 className="text-xs font-semibold text-accent-purple flex items-center gap-1 mb-1">
+            <Sparkles className="w-3.5 h-3.5" /> Resumen del lead
+            <span className="text-[9px] font-normal text-gray-500">· todos los canales</span>
+          </h4>
+          {resumenLoading ? (
+            <p className="text-xs text-gray-500 animate-pulse">Generando resumen con IA…</p>
+          ) : (
+            <p className="text-sm text-gray-200 leading-snug whitespace-pre-wrap break-words">{resumenLead}</p>
+          )}
+        </div>
+      )}
+
+      {/* Resumen por canal — clic despliega todos los registros de ese canal */}
+      {(resumenCanales.llamada || resumenCanales.chat || resumenCanales.cita) && (
+        <div className="space-y-1.5 mb-3">
+          {resumenCanales.llamada && (
+            <button type="button" onClick={() => { setCanal("llamada"); setSubCat("todas"); }} className="w-full text-left rounded-lg bg-surface-700/60 hover:bg-surface-600 px-3 py-2 group">
+              <div className="flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-accent-cyan shrink-0" />
+                <span className="text-[11px] font-medium text-accent-cyan">Llamadas</span>
+                <span className="text-[10px] text-gray-500">{resumenCanales.llamada.count}</span>
+                <span className="text-[9px] uppercase tracking-wide text-gray-600 ml-1">última contestada</span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-600 ml-auto group-hover:text-gray-400 shrink-0" />
+              </div>
+              <p className="text-xs text-gray-300 line-clamp-2 mt-0.5">{resumenCanales.llamada.resumen}</p>
+            </button>
+          )}
+          {resumenCanales.chat && (
+            <button type="button" onClick={() => { setCanal("chat"); setSubCat("todas"); }} className="w-full text-left rounded-lg bg-surface-700/60 hover:bg-surface-600 px-3 py-2 group">
+              <div className="flex items-center gap-2 flex-wrap">
+                <MessageSquare className="w-3.5 h-3.5 text-accent-amber shrink-0" />
+                <span className="text-[11px] font-medium text-accent-amber">Chats</span>
+                <span className="text-[10px] text-gray-500">{resumenCanales.chat.count}</span>
+                {resumenCanales.chat.estado && (
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                    resumenCanales.chat.estado.waiting === "asesor" ? "bg-accent-amber/20 text-accent-amber"
+                      : resumenCanales.chat.estado.waiting === "lead" ? "bg-accent-cyan/20 text-accent-cyan"
+                      : "bg-surface-600 text-gray-300"
+                  }`}>{resumenCanales.chat.estado.waiting ? "⏳ " : ""}{resumenCanales.chat.estado.label}</span>
+                )}
+                <ChevronRight className="w-3.5 h-3.5 text-gray-600 ml-auto group-hover:text-gray-400 shrink-0" />
+              </div>
+              <p className="text-xs text-gray-300 line-clamp-2 mt-0.5">{resumenCanales.chat.resumen}</p>
+            </button>
+          )}
+          {resumenCanales.cita && (
+            <button type="button" onClick={() => { setCanal("cita"); setSubCat("todas"); }} className="w-full text-left rounded-lg bg-surface-700/60 hover:bg-surface-600 px-3 py-2 group">
+              <div className="flex items-center gap-2">
+                <Video className="w-3.5 h-3.5 text-accent-purple shrink-0" />
+                <span className="text-[11px] font-medium text-accent-purple">Citas</span>
+                <span className="text-[10px] text-gray-500">{resumenCanales.cita.count}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-600 ml-auto group-hover:text-gray-400 shrink-0" />
+              </div>
+              <p className="text-xs text-gray-300 line-clamp-2 mt-0.5">{resumenCanales.cita.resumen}</p>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Filtros por canal */}
       <div className="flex flex-wrap gap-1.5 mb-2">
